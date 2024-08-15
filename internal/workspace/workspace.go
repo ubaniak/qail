@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
+	"qail/internal/compression"
 	"qail/internal/git"
 )
 
@@ -55,8 +57,8 @@ func (w Workspace) Create() error {
 func (w Workspace) Remove() error {
 	wsPath := path.Join(w.Root, w.Name)
 
-  fmt.Printf("removing %s", wsPath)
-	return os.RemoveAll(wsPath)
+	fmt.Printf("removing %s", wsPath)
+	return nil
 }
 
 func (w Workspace) RemoveRepo(repo string) error {
@@ -76,5 +78,27 @@ func Open(editor, workspace string) {
 }
 
 func Cd(ws string) {
-  fmt.Printf("cd %s\n", ws)
+	fmt.Printf("cd %s\n", ws)
+}
+
+func Clean(ws map[string][]string, rootDir, archiveDir string) error {
+	entries, err := os.ReadDir(rootDir)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			folderName := entry.Name()
+			if _, exists := ws[folderName]; !exists {
+				src := filepath.Join(rootDir, folderName)
+				dest := filepath.Join(archiveDir, folderName+".tar.gz")
+				fmt.Printf("Archiving folder: %s\n", src)
+				if err := compression.TarGzipFolder(src, dest); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }

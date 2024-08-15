@@ -8,9 +8,10 @@ import (
 )
 
 var (
-	rootDir    string
-	configPath string
-	fileName   = "config.json"
+	rootDir     string
+	configPath  string
+	archivePath string
+	fileName    = "config.json"
 )
 
 func init() {
@@ -24,6 +25,11 @@ func init() {
 		os.Mkdir(rootDir, 0755)
 	}
 
+	archivePath = filepath.Join(rootDir, "archive")
+	if _, err := os.Stat(archivePath); os.IsNotExist(err) {
+		os.Create(archivePath)
+	}
+
 	configPath = filepath.Join(rootDir, fileName)
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		os.Create(configPath)
@@ -31,10 +37,11 @@ func init() {
 }
 
 type Config struct {
-	Root       string              `json:"root"`
-	Editor     string              `json:"editor"`
-	Workspaces map[string][]string `json:"workspaces"`
-	Repos      map[string]string   `json:"repos"`
+	ArchivePath string
+	Root        string              `json:"root"`
+	Editor      string              `json:"editor"`
+	Workspaces  map[string][]string `json:"workspaces"`
+	Repos       map[string]string   `json:"repos"`
 }
 
 func ValidateConfig() error {
@@ -64,6 +71,7 @@ func ReadFromFile() (Config, error) {
 	}
 
 	json.Unmarshal(file, &config)
+	config.ArchivePath = archivePath
 
 	return config, nil
 }

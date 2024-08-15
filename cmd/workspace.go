@@ -204,6 +204,28 @@ var (
 			ws.Create()
 		},
 	}
+	cleanWsCmd = &cobra.Command{
+		Use: "clean",
+		Run: func(cmd *cobra.Command, args []string) {
+			cfg, err := config.ReadFromFile()
+			if err != nil {
+				log.Fatalln(err)
+			}
+			if cfg.Workspaces == nil {
+				cfg.Workspaces = make(map[string][]string)
+			}
+
+			err = workspace.Clean(cfg.Workspaces, cfg.Root, cfg.ArchivePath)
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			err = config.WriteToFile(cfg)
+			if err != nil {
+				log.Fatalln(err)
+			}
+		},
+	}
 )
 
 func runWsCmd() cobraReturnType {
@@ -224,12 +246,13 @@ func runWsCmd() cobraReturnType {
 				cdWsCmd.Execute()
 			case "open":
 				openWsCmd.Execute()
+			case "clean":
+				cleanWsCmd.Execute()
 			}
-
 		}
 	}
 }
 
 func init() {
-	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd)
+	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWsCmd)
 }
