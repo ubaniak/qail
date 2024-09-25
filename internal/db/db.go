@@ -1,6 +1,8 @@
 package db
 
 import (
+	"time"
+
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -13,6 +15,15 @@ type Config struct {
 
 type Repo struct {
 	gorm.Model
+	Name string
+	Url  string
+}
+
+type Workspace struct {
+	gorm.Model
+	Name        string
+	Repo        []Repo
+	LastUpdated time.Time
 }
 
 func Init(dbPath string) (*gorm.DB, error) {
