@@ -26,7 +26,25 @@ type Workspace struct {
 	LastUpdated time.Time
 }
 
-func Init(dbPath string) (*gorm.DB, error) {
+func CreateSqliteDb(dbPath string) (*gorm.DB, error) {
 	db, err := gorm.Open(sqlite.Open(dbPath))
 	return db, err
+}
+
+type dbConfig struct {
+	db *gorm.DB
+}
+
+func New(db *gorm.DB) *dbConfig {
+	return &dbConfig{db}
+}
+
+func (c *dbConfig) SetupDB() {
+	c.db.AutoMigrate(&Repo{})
+	c.db.AutoMigrate(&Config{})
+	c.db.AutoMigrate(&Workspace{})
+}
+
+func (c *dbConfig) NewConfig(config *Config) {
+	c.db.Create(config)
 }
