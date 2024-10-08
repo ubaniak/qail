@@ -30,7 +30,7 @@ func SortWorkspaces(ws config.Workspace) []string {
 	return keys
 }
 
-func formatWorkspaces(ws config.Workspace) []string {
+func formatWorkspaces(ws config.Workspace) ([]string, []string) {
 	keys := SortWorkspaces(ws)
 	formatted := make([]string, 0, len(ws))
 	for _, key := range keys {
@@ -38,7 +38,7 @@ func formatWorkspaces(ws config.Workspace) []string {
 		fmtStr := fmt.Sprintf("%s [%s] %s", key, strings.Join(repos[:], ","), ws[key].LastUsed)
 		formatted = append(formatted, fmtStr)
 	}
-	return formatted
+	return keys, formatted
 }
 
 func NewWorkspace(allRepos map[string]string) (workspaceModel, error) {
@@ -78,10 +78,9 @@ func FindWorkspace(ws config.Workspace) (workspaceModel, error) {
 	s := huh.NewSelect[string]().Title("Choose a workspace").Value(&name)
 
 	var opts []huh.Option[string]
-	for k, v := range ws {
-		repos := v.Repos
-		fmtStr := fmt.Sprintf("%s [%s]", k, strings.Join(repos[:], ","))
-		opts = append(opts, huh.NewOption(fmtStr, k))
+	keys, fmt := formatWorkspaces(ws)
+	for i := range keys {
+		opts = append(opts, huh.NewOption(fmt[i], keys[i]))
 	}
 	s.Options(opts...)
 

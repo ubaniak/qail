@@ -132,7 +132,7 @@ var (
 				log.Fatalln(err)
 			}
 
-			cfg.Workspaces[c.Name] = c.Packages
+			// cfg.Workspaces[c.Name] = c.Packages
 
 			err = config.WriteToFile(cfg)
 			if err != nil {
@@ -152,7 +152,7 @@ var (
 				log.Fatalln(err)
 			}
 			if cfg.Workspaces == nil {
-				cfg.Workspaces = make(map[string][]string)
+				cfg.Workspaces = make(config.Workspace)
 			}
 
 			r, err := forms.NewWorkspace(cfg.Repos)
@@ -160,7 +160,7 @@ var (
 				log.Fatalln(err)
 			}
 
-			cfg.Workspaces[r.Name] = r.Packages
+			cfg.Workspaces[r.Name] = config.WorkspaceProfile{Repos: r.Packages, LastUsed: r.LastUsed}
 
 			err = config.WriteToFile(cfg)
 			if err != nil {
@@ -180,7 +180,7 @@ var (
 				log.Fatalln(err)
 			}
 			if cfg.Workspaces == nil {
-				cfg.Workspaces = make(map[string][]string)
+				// cfg.Workspaces = make(map[string][]string)
 			}
 
 			r, err := forms.FindWorkspace(cfg.Workspaces)
@@ -193,7 +193,7 @@ var (
 				log.Fatalln(err)
 			}
 
-			cfg.Workspaces[e.Name] = e.Packages
+			// cfg.Workspaces[e.Name] = e.Packages
 
 			err = config.WriteToFile(cfg)
 			if err != nil {
