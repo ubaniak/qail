@@ -2,7 +2,10 @@ package forms
 
 import (
 	"fmt"
+	"qail/internal/config"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/huh"
 )
@@ -10,6 +13,32 @@ import (
 type workspaceModel struct {
 	Name     string
 	Packages []string
+	LastUsed time.Time
+}
+
+func SortWorkspaces(ws config.Workspace) []string {
+
+	keys := make([]string, 0, len(ws))
+	for key := range ws {
+		keys = append(keys, key)
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		return ws[keys[i]].LastUsed.After(ws[keys[j]].LastUsed)
+	})
+
+	return keys
+}
+
+func formatWorkspaces(ws config.Workspace) []string {
+	keys := SortWorkspaces(ws)
+	formatted := make([]string, 0, len(ws))
+	for _, key := range keys {
+		repos := ws[key].Repos
+		fmtStr := fmt.Sprintf("%s [%s] %s", key, strings.Join(repos[:], ","), ws[key].LastUsed)
+		formatted = append(formatted, fmtStr)
+	}
+	return formatted
 }
 
 func NewWorkspace(allRepos map[string]string) (workspaceModel, error) {
@@ -40,16 +69,18 @@ func NewWorkspace(allRepos map[string]string) (workspaceModel, error) {
 	return workspaceModel{
 		Name:     name,
 		Packages: repos,
+		LastUsed: time.Now().UTC(),
 	}, nil
 }
 
-func FindWorkspace(ws map[string][]string) (workspaceModel, error) {
+func FindWorkspace(ws config.Workspace) (workspaceModel, error) {
 	var name string
 	s := huh.NewSelect[string]().Title("Choose a workspace").Value(&name)
 
 	var opts []huh.Option[string]
 	for k, v := range ws {
-		fmtStr := fmt.Sprintf("%s [%s]", k, strings.Join(v[:], ","))
+		repos := v.Repos
+		fmtStr := fmt.Sprintf("%s [%s]", k, strings.Join(repos[:], ","))
 		opts = append(opts, huh.NewOption(fmtStr, k))
 	}
 	s.Options(opts...)
@@ -66,7 +97,8 @@ func FindWorkspace(ws map[string][]string) (workspaceModel, error) {
 
 	return workspaceModel{
 		Name:     name,
-		Packages: ws[name],
+		Packages: ws[name].Repos,
+		LastUsed: ws[name].LastUsed,
 	}, nil
 }
 
@@ -87,22 +119,23 @@ func CloneWorkspace(name string, packages []string) (workspaceModel, error) {
 	return workspaceModel{
 		Packages: packages,
 		Name:     name,
+		LastUsed: time.Now().UTC(),
 	}, nil
 }
 
-func DisplayWorkspaces(ws map[string][]string) {
+func DisplayWorkspaces(ws config.Workspace) {
 
 	var rows [][]string
 	for k, v := range ws {
 		var fmtPkg []string
-		for _, p := range v {
+		for _, p := range v.Repos {
 			fmtPkg = append(fmtPkg, fmt.Sprintf("* %s", p))
 		}
-		row := []string{k, strings.Join(fmtPkg, "\n")}
+		row := []string{k, strings.Join(fmtPkg, "\n"), v.LastUsed.String()}
 		rows = append(rows, row)
 	}
 
-	headers := []string{"Name", "Package"}
+	headers := []string{"Name", "Package", "Last Used"}
 
 	displayTable(headers, rows)
 }
@@ -139,16 +172,18 @@ func EditWorkspace(n string, packages []string, allPackages map[string]string) (
 	return workspaceModel{
 		Name:     n,
 		Packages: pkgs,
+		LastUsed: time.Now().UTC(),
 	}, nil
 }
 
-func RemoveWorkspace(ws *map[string][]string) error {
+func RemoveWorkspace(ws *config.Workspace) error {
 	var name string
 	s := huh.NewSelect[string]().Title("Choose a workspace").Value(&name)
 
 	var opts []huh.Option[string]
 	for k, v := range *ws {
-		fmtStr := fmt.Sprintf("%s [%s]", k, strings.Join(v[:], ","))
+		repos := v.Repos
+		fmtStr := fmt.Sprintf("%s [%s]", k, strings.Join(repos[:], ","))
 		opts = append(opts, huh.NewOption(fmtStr, k))
 	}
 	s.Options(opts...)

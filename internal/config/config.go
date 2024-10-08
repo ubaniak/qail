@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 var (
@@ -30,11 +31,18 @@ func init() {
 	}
 }
 
+type Workspace map[string]WorkspaceProfile
+
+type WorkspaceProfile struct {
+	Repos    []string  `json:"repos"`
+	LastUsed time.Time `json:"last_used"`
+}
+
 type Config struct {
-	Root       string              `json:"root"`
-	Editor     string              `json:"editor"`
-	Workspaces map[string][]string `json:"workspaces"`
-	Repos      map[string]string   `json:"repos"`
+	Root       string            `json:"root"`
+	Editor     string            `json:"editor"`
+	Workspaces Workspace         `json:"workspaces"`
+	Repos      map[string]string `json:"repos"`
 }
 
 func ValidateConfig() error {
