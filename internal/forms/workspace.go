@@ -212,3 +212,19 @@ func RemoveWorkspace(ws *config.Workspace) error {
 	delete(*ws, name)
 	return nil
 }
+
+func CleanWorkspace() (bool, error) {
+	var confirm bool
+	c := huh.NewConfirm().
+		Title("This will delete untracked files in your workspace. Are you sure?").
+		Affirmative("Yes").
+		Negative("No").
+		Value(&confirm)
+
+	f := huh.NewForm(
+		huh.NewGroup(c),
+	)
+	err := f.Run()
+
+	return confirm, err
+}

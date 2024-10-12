@@ -70,6 +70,18 @@ func ValidateConfig() error {
 	return nil
 }
 
+func GetConfig(fn func(cfg Config)) error {
+
+	cfg, err := ReadFromFile()
+	if err != nil {
+		return err
+	}
+
+	fn(cfg)
+
+	return WriteToFile(cfg)
+}
+
 func ReadFromFile() (Config, error) {
 	var config Config
 

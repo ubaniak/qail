@@ -55,7 +55,7 @@ func (w Workspace) Create() error {
 func (w Workspace) Remove() error {
 	wsPath := path.Join(w.Root, w.Name)
 
-  fmt.Printf("removing %s", wsPath)
+	fmt.Printf("removing %s", wsPath)
 	return os.RemoveAll(wsPath)
 }
 
@@ -76,5 +76,23 @@ func Open(editor, workspace string) {
 }
 
 func Cd(ws string) {
-  fmt.Printf("cd %s\n", ws)
+	fmt.Printf("cd %s\n", ws)
+}
+
+func Clean(root string) error {
+	files, err := os.ReadDir(root)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Reading...", root)
+
+	for _, file := range files {
+		if file.IsDir() {
+			fmt.Println("Folder name", file.Name())
+		}
+
+	}
+
+	return nil
 }
