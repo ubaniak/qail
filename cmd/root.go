@@ -23,5 +23,4 @@ func init() {
 	rootCmd.AddCommand(wsCmd)
 	rootCmd.AddCommand(repoCmd)
 	rootCmd.AddCommand(initCmd)
-	rootCmd.AddCommand(dbCmd)
 }
