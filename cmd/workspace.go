@@ -234,7 +234,7 @@ var (
 					return
 				}
 
-				workspace.Clean(cfg.Root)
+				workspace.Clean(cfg.Root, cfg.Workspaces)
 			}
 
 			err := config.GetConfig(fn)

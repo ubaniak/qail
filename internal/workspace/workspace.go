@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"qail/internal/config"
 	"qail/internal/git"
 )
 
@@ -79,7 +80,7 @@ func Cd(ws string) {
 	fmt.Printf("cd %s\n", ws)
 }
 
-func Clean(root string) error {
+func Clean(root string, ws config.Workspace) error {
 	files, err := os.ReadDir(root)
 	if err != nil {
 		return err
@@ -88,10 +89,18 @@ func Clean(root string) error {
 	fmt.Println("Reading...", root)
 
 	for _, file := range files {
-		if file.IsDir() {
-			fmt.Println("Folder name", file.Name())
+		if !file.IsDir() {
+			continue
 		}
-
+		fmt.Println("Folder name", file.Name())
+		_, ok := ws[file.Name()]
+		if !ok {
+			fmt.Println("--> Deleting", file.Name())
+			err := os.RemoveAll(path.Join(root, file.Name()))
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
