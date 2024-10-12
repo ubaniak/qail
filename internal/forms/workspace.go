@@ -2,12 +2,13 @@ package forms
 
 import (
 	"fmt"
-	"qail/internal/config"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/huh"
+
+	"qail/internal/config"
 )
 
 type workspaceModel struct {
@@ -35,7 +36,7 @@ func formatWorkspaces(ws config.Workspace) ([]string, []string) {
 	formatted := make([]string, 0, len(ws))
 	for _, key := range keys {
 		repos := ws[key].Repos
-		fmtStr := fmt.Sprintf("%s [%s] %s", key, strings.Join(repos[:], ","), ws[key].LastUsed)
+		fmtStr := fmt.Sprintf("%s [%s] %s", key, strings.Join(repos[:], ","), ws[key].LastUsed.Format(time.RFC822))
 		formatted = append(formatted, fmtStr)
 	}
 	return keys, formatted
@@ -64,7 +65,6 @@ func NewWorkspace(allRepos map[string]string) (workspaceModel, error) {
 	if err != nil {
 		return workspaceModel{}, err
 	}
-	fmt.Println(repos)
 
 	return workspaceModel{
 		Name:     name,
@@ -124,13 +124,16 @@ func CloneWorkspace(name string, packages []string) (workspaceModel, error) {
 
 func DisplayWorkspaces(ws config.Workspace) {
 
+	keys := SortWorkspaces(ws)
 	var rows [][]string
-	for k, v := range ws {
+	for _, k := range keys {
+		v := ws[k]
 		var fmtPkg []string
 		for _, p := range v.Repos {
+			fmt.Println(p)
 			fmtPkg = append(fmtPkg, fmt.Sprintf("* %s", p))
 		}
-		row := []string{k, strings.Join(fmtPkg, "\n"), v.LastUsed.String()}
+		row := []string{k, strings.Join(fmtPkg, "\n"), v.LastUsed.Format(time.RFC822)}
 		rows = append(rows, row)
 	}
 

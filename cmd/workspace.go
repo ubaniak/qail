@@ -5,11 +5,13 @@ import (
 	"log"
 	"os"
 	"path"
+	"time"
+
+	"github.com/spf13/cobra"
+
 	"qail/internal/config"
 	forms "qail/internal/forms"
 	"qail/internal/workspace"
-
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -39,6 +41,12 @@ var (
 				log.Fatalln(fmt.Errorf("workspace \"%s\" does not exist. Please run qail ws create", ws))
 			}
 
+			cfg.Workspaces[r.Name] = config.NewWorkspaceProfile(r.Packages, time.Now().UTC())
+			err = config.WriteToFile(cfg)
+			if err != nil {
+				log.Fatalln(err)
+			}
+
 			workspace.Open(cfg.Editor, ws)
 		},
 	}
@@ -59,6 +67,12 @@ var (
 
 			if _, err := os.Stat(ws); os.IsNotExist(err) {
 				log.Fatalln(fmt.Errorf("workspace \"%s\" does not exist. Please run qail ws create", ws))
+			}
+
+			cfg.Workspaces[r.Name] = config.NewWorkspaceProfile(r.Packages, time.Now().UTC())
+			err = config.WriteToFile(cfg)
+			if err != nil {
+				log.Fatalln(err)
 			}
 			workspace.Cd(ws)
 		},
@@ -132,7 +146,7 @@ var (
 				log.Fatalln(err)
 			}
 
-			// cfg.Workspaces[c.Name] = c.Packages
+			cfg.Workspaces[c.Name] = config.NewWorkspaceProfile(c.Packages, c.LastUsed)
 
 			err = config.WriteToFile(cfg)
 			if err != nil {
@@ -160,7 +174,7 @@ var (
 				log.Fatalln(err)
 			}
 
-			cfg.Workspaces[r.Name] = config.WorkspaceProfile{Repos: r.Packages, LastUsed: r.LastUsed}
+			cfg.Workspaces[r.Name] = config.NewWorkspaceProfile(r.Packages, r.LastUsed)
 
 			err = config.WriteToFile(cfg)
 			if err != nil {
@@ -180,7 +194,7 @@ var (
 				log.Fatalln(err)
 			}
 			if cfg.Workspaces == nil {
-				// cfg.Workspaces = make(map[string][]string)
+				cfg.Workspaces = make(config.Workspace)
 			}
 
 			r, err := forms.FindWorkspace(cfg.Workspaces)
@@ -193,7 +207,7 @@ var (
 				log.Fatalln(err)
 			}
 
-			// cfg.Workspaces[e.Name] = e.Packages
+			cfg.Workspaces[e.Name] = config.NewWorkspaceProfile(e.Packages, e.LastUsed)
 
 			err = config.WriteToFile(cfg)
 			if err != nil {

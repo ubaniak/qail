@@ -38,6 +38,13 @@ type WorkspaceProfile struct {
 	LastUsed time.Time `json:"last_used"`
 }
 
+func NewWorkspaceProfile(repos []string, lastUsed time.Time) WorkspaceProfile {
+	return WorkspaceProfile{
+		Repos:    repos,
+		LastUsed: lastUsed,
+	}
+}
+
 type Config struct {
 	Root       string            `json:"root"`
 	Editor     string            `json:"editor"`

@@ -3,10 +3,11 @@ package cmd
 import (
 	"fmt"
 	"log"
-	"qail/internal/config"
-	forms "qail/internal/forms"
 
 	"github.com/spf13/cobra"
+
+	"qail/internal/config"
+	forms "qail/internal/forms"
 )
 
 var (

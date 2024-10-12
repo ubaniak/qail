@@ -2,13 +2,30 @@ package cmd
 
 import (
 	"log"
-	"qail/internal/config"
-	"qail/internal/forms"
 
 	"github.com/spf13/cobra"
+
+	"qail/internal/config"
+	"qail/internal/forms"
 )
 
 var (
+	configConvertCmd = &cobra.Command{
+		Use:       "convert",
+		ValidArgs: []string{"new", "restore"},
+		Args:      cobra.OnlyValidArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			a := args[0]
+			if a == "new" {
+				config.BackUpConfig()
+				config.ConvertOldToNew()
+			}
+
+			if a == "restore" {
+				config.RestoreConfig()
+			}
+		},
+	}
 	configLsCmd = &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
@@ -67,6 +84,8 @@ func runCacheCmd() cobraReturnType {
 	return func(cmd *cobra.Command, args []string) {
 		for _, arg := range args {
 			switch arg {
+			case "convert":
+				configConvertCmd.Execute()
 			case "root":
 				configRootCmd.Execute()
 			case "editor":
@@ -79,5 +98,5 @@ func runCacheCmd() cobraReturnType {
 }
 
 func init() {
-	configCmd.AddCommand(configRootCmd, configEditorCmd, configLsCmd)
+	configCmd.AddCommand(configRootCmd, configEditorCmd, configLsCmd, configConvertCmd)
 }
