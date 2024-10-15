@@ -130,7 +130,6 @@ func DisplayWorkspaces(ws config.Workspace) {
 		v := ws[k]
 		var fmtPkg []string
 		for _, p := range v.Repos {
-			fmt.Println(p)
 			fmtPkg = append(fmtPkg, fmt.Sprintf("* %s", p))
 		}
 		row := []string{k, strings.Join(fmtPkg, "\n"), v.LastUsed.Format(time.RFC822)}

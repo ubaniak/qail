@@ -223,7 +223,6 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 
 			fn := func(cfg config.Config) {
-				fmt.Println(cfg)
 
 				ok, err := forms.CleanWorkspace()
 				if err != nil {
