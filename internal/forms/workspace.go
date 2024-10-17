@@ -182,10 +182,9 @@ func RemoveWorkspace(ws *config.Workspace) error {
 	s := huh.NewSelect[string]().Title("Choose a workspace").Value(&name)
 
 	var opts []huh.Option[string]
-	for k, v := range *ws {
-		repos := v.Repos
-		fmtStr := fmt.Sprintf("%s [%s]", k, strings.Join(repos[:], ","))
-		opts = append(opts, huh.NewOption(fmtStr, k))
+	keys, fmt := formatWorkspaces(*ws)
+	for i := range keys {
+		opts = append(opts, huh.NewOption(fmt[i], keys[i]))
 	}
 	s.Options(opts...)
 
