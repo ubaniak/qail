@@ -6,6 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"path"
+
+	"github.com/atotto/clipboard"
+
 	"qail/internal/config"
 	"qail/internal/git"
 )
@@ -77,7 +80,10 @@ func Open(editor, workspace string) {
 }
 
 func Cd(ws string) {
-	fmt.Printf("cd %s\n", ws)
+	cmd := fmt.Sprintf("cd %s\n", ws)
+	fmt.Println(cmd)
+	fmt.Println("copied to clipboard")
+	clipboard.WriteAll(cmd)
 }
 
 func Clean(root string, ws config.Workspace) error {
