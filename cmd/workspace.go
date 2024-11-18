@@ -77,6 +77,38 @@ var (
 			workspace.Cd(ws)
 		},
 	}
+	tmuxWsCmd = &cobra.Command{
+		Use:     "mux",
+		Aliases: []string{"m"},
+		Run: func(cmd *cobra.Command, args []string) {
+			cfg, err := config.ReadFromFile()
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			r, err := forms.FindWorkspace(cfg.Workspaces)
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			ws := path.Join(cfg.Root, r.Name)
+
+			if _, err := os.Stat(ws); os.IsNotExist(err) {
+				log.Fatalln(fmt.Errorf("workspace \"%s\" does not exist. Please run qail ws create", ws))
+			}
+
+			cfg.Workspaces[r.Name] = config.NewWorkspaceProfile(r.Packages, time.Now().UTC())
+			err = config.WriteToFile(cfg)
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			err = workspace.Tmux(ws)
+			if err != nil {
+				log.Fatalln(err)
+			}
+		},
+	}
 	removeWsCmd = &cobra.Command{
 		Use:     "remove",
 		Aliases: []string{"rm"},
@@ -249,6 +281,8 @@ func runWsCmd() cobraReturnType {
 	return func(cmd *cobra.Command, args []string) {
 		for _, arg := range args {
 			switch arg {
+			case "tmux":
+				tmuxWsCmd.Execute()
 			case "create":
 				createWsCmd.Execute()
 			case "add":
@@ -272,5 +306,5 @@ func runWsCmd() cobraReturnType {
 }
 
 func init() {
-	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd)
+	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd, tmuxWsCmd)
 }

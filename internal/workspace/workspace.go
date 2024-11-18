@@ -11,6 +11,7 @@ import (
 
 	"qail/internal/config"
 	"qail/internal/git"
+	"qail/internal/tmux"
 )
 
 type Workspace struct {
@@ -84,6 +85,22 @@ func Cd(ws string) {
 	fmt.Println(cmd)
 	fmt.Println("copied to clipboard")
 	clipboard.WriteAll(cmd)
+}
+
+func Tmux(ws string) error {
+	err, _ := tmux.IsInstalled()
+	if err != nil {
+		return err
+	}
+	sessionName := tmux.SessionName(ws)
+	if !tmux.SessionExists(sessionName) {
+		err := tmux.Launch(ws)
+		if err != nil {
+			return err
+		}
+	}
+	tmux.Attach(sessionName)
+	return nil
 }
 
 func Clean(root string, ws config.Workspace) error {
