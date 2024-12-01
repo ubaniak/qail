@@ -30,12 +30,12 @@ var (
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.ReadFromFile()
-			if err != nil {
-				log.Fatalln(err)
+			fn := func(cfg *config.Config) error {
+				forms.DisplayConfig(*cfg)
+				return nil
 			}
 
-			forms.DisplayConfig(cfg)
+			HandleConfig(fn)
 
 		},
 	}
@@ -43,44 +43,35 @@ var (
 		Use:  "editor",
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.ReadFromFile()
-			if err != nil {
-				log.Fatalln(err)
+			fn := func(cfg *config.Config) error {
+				cfg.Editor = args[0]
+				return nil
 			}
 
-			cfg.Editor = args[0]
-
-			err = config.WriteToFile(cfg)
-			if err != nil {
-				log.Fatalln(err)
-			}
+			HandleConfig(fn)
 		},
 	}
 	configRootCmd = &cobra.Command{
 		Use:  "root",
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.ReadFromFile()
-			if err != nil {
-				log.Fatalln(err)
+
+			fn := func(cfg *config.Config) error {
+				cfg.Root = args[0]
+				return nil
 			}
 
-			cfg.Root = args[0]
-
-			err = config.WriteToFile(cfg)
-			if err != nil {
-				log.Fatalln(err)
-			}
+			HandleConfig(fn)
 		},
 	}
 	configCmd = &cobra.Command{
 		Use:   "config",
 		Short: "Manage the qail config",
-		Run:   runCacheCmd(),
+		Run:   runConfigCmd(),
 	}
 )
 
-func runCacheCmd() cobraReturnType {
+func runConfigCmd() cobraReturnType {
 	return func(cmd *cobra.Command, args []string) {
 		for _, arg := range args {
 			switch arg {
@@ -99,4 +90,11 @@ func runCacheCmd() cobraReturnType {
 
 func init() {
 	configCmd.AddCommand(configRootCmd, configEditorCmd, configLsCmd, configConvertCmd)
+}
+
+func HandleConfig(fn func(*config.Config) error) {
+	err := config.WithConfig(fn)
+	if err != nil {
+		log.Fatalln(err)
+	}
 }

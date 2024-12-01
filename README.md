@@ -95,3 +95,13 @@ Open a workspace with
 qail open
 ```
 
+### Tmux
+
+* Install tmux
+
+Open a workspace with 
+
+
+``` sh
+qail mux o
+```

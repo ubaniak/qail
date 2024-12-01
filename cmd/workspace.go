@@ -25,108 +25,95 @@ var (
 		Use:     "open",
 		Aliases: []string{"o"},
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.ReadFromFile()
-			if err != nil {
-				log.Fatalln(err)
+			fn := func(cfg *config.Config) error {
+				r, err := forms.FindWorkspace(cfg.Workspaces)
+				if err != nil {
+					return err
+				}
+
+				ws := path.Join(cfg.Root, r.Name)
+
+				if _, err := os.Stat(ws); os.IsNotExist(err) {
+					return fmt.Errorf("workspace \"%s\" does not exist. Please run qail ws create", ws)
+				}
+
+				cfg.Workspaces[r.Name] = config.NewWorkspaceProfile(r.Packages, time.Now().UTC())
+
+				workspace.Open(cfg.Editor, ws)
+				return nil
 			}
-
-			r, err := forms.FindWorkspace(cfg.Workspaces)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			ws := path.Join(cfg.Root, r.Name)
-
-			if _, err := os.Stat(ws); os.IsNotExist(err) {
-				log.Fatalln(fmt.Errorf("workspace \"%s\" does not exist. Please run qail ws create", ws))
-			}
-
-			cfg.Workspaces[r.Name] = config.NewWorkspaceProfile(r.Packages, time.Now().UTC())
-			err = config.WriteToFile(cfg)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			workspace.Open(cfg.Editor, ws)
+			HandleConfig(fn)
 		},
 	}
 	cdWsCmd = &cobra.Command{
 		Use: "cd",
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.ReadFromFile()
-			if err != nil {
-				log.Fatalln(err)
+			fn := func(cfg *config.Config) error {
+
+				r, err := forms.FindWorkspace(cfg.Workspaces)
+				if err != nil {
+					return err
+				}
+
+				ws := path.Join(cfg.Root, r.Name)
+
+				if _, err := os.Stat(ws); os.IsNotExist(err) {
+					return fmt.Errorf("workspace \"%s\" does not exist. Please run qail ws create", ws)
+				}
+
+				cfg.Workspaces[r.Name] = config.NewWorkspaceProfile(r.Packages, time.Now().UTC())
+				workspace.Cd(ws)
+				return nil
 			}
 
-			r, err := forms.FindWorkspace(cfg.Workspaces)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			ws := path.Join(cfg.Root, r.Name)
-
-			if _, err := os.Stat(ws); os.IsNotExist(err) {
-				log.Fatalln(fmt.Errorf("workspace \"%s\" does not exist. Please run qail ws create", ws))
-			}
-
-			cfg.Workspaces[r.Name] = config.NewWorkspaceProfile(r.Packages, time.Now().UTC())
-			err = config.WriteToFile(cfg)
-			if err != nil {
-				log.Fatalln(err)
-			}
-			workspace.Cd(ws)
+			HandleConfig(fn)
 		},
 	}
 	tmuxWsCmd = &cobra.Command{
 		Use:     "mux",
 		Aliases: []string{"m"},
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.ReadFromFile()
-			if err != nil {
-				log.Fatalln(err)
+			fn := func(cfg *config.Config) error {
+				r, err := forms.FindWorkspace(cfg.Workspaces)
+				if err != nil {
+					return err
+				}
+
+				ws := path.Join(cfg.Root, r.Name)
+
+				if _, err := os.Stat(ws); os.IsNotExist(err) {
+					return fmt.Errorf("workspace \"%s\" does not exist. Please run qail ws create", ws)
+				}
+
+				cfg.Workspaces[r.Name] = config.NewWorkspaceProfile(r.Packages, time.Now().UTC())
+				err = config.WriteToFile(*cfg)
+				if err != nil {
+					return err
+				}
+
+				err = workspace.Tmux(ws)
+				if err != nil {
+					return err
+				}
+				return nil
 			}
 
-			r, err := forms.FindWorkspace(cfg.Workspaces)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			ws := path.Join(cfg.Root, r.Name)
-
-			if _, err := os.Stat(ws); os.IsNotExist(err) {
-				log.Fatalln(fmt.Errorf("workspace \"%s\" does not exist. Please run qail ws create", ws))
-			}
-
-			cfg.Workspaces[r.Name] = config.NewWorkspaceProfile(r.Packages, time.Now().UTC())
-			err = config.WriteToFile(cfg)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			err = workspace.Tmux(ws)
-			if err != nil {
-				log.Fatalln(err)
-			}
+			HandleConfig(fn)
 		},
 	}
 	removeWsCmd = &cobra.Command{
 		Use:     "remove",
 		Aliases: []string{"rm"},
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.ReadFromFile()
-			if err != nil {
-				log.Fatalln(err)
-			}
+			fn := func(cfg *config.Config) error {
+				err := forms.RemoveWorkspace(&cfg.Workspaces)
+				if err != nil {
+					return err
+				}
 
-			err = forms.RemoveWorkspace(&cfg.Workspaces)
-			if err != nil {
-				log.Fatalln(err)
+				return nil
 			}
-
-			err = config.WriteToFile(cfg)
-			if err != nil {
-				log.Fatalln(err)
-			}
+			HandleConfig(fn)
 		},
 	}
 	listWsCmd = &cobra.Command{
@@ -134,145 +121,135 @@ var (
 		Aliases: []string{"ls"},
 		Args:    cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.ReadFromFile()
-			if err != nil {
-				log.Fatalln(err)
+			fn := func(cfg *config.Config) error {
+				forms.DisplayWorkspaces((cfg.Workspaces))
+				return nil
 			}
 
-			forms.DisplayWorkspaces((cfg.Workspaces))
+			HandleConfig(fn)
+
 		},
 	}
 	createWsCmd = &cobra.Command{
 		Use:     "create",
 		Aliases: []string{"c"},
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.ReadFromFile()
-			if err != nil {
-				log.Fatalln(err)
-			}
+			fn := func(cfg *config.Config) error {
+				r, err := forms.FindWorkspace(cfg.Workspaces)
+				if err != nil {
+					return err
+				}
 
-			r, err := forms.FindWorkspace(cfg.Workspaces)
-			if err != nil {
-				log.Fatalln(err)
+				ws := workspace.New(cfg.Root, r.Name, r.Packages, cfg.Repos)
+				return ws.Create()
 			}
-
-			ws := workspace.New(cfg.Root, r.Name, r.Packages, cfg.Repos)
-			ws.Create()
+			HandleConfig(fn)
 		},
 	}
 	cloneWsCmd = &cobra.Command{
 		Use: "clone",
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.ReadFromFile()
+			fn := func(cfg *config.Config) error {
+
+				f, err := forms.FindWorkspace(cfg.Workspaces)
+				if err != nil {
+					return err
+				}
+
+				c, err := forms.CloneWorkspace(f.Name, f.Packages)
+				if err != nil {
+					return err
+				}
+
+				cfg.Workspaces[c.Name] = config.NewWorkspaceProfile(c.Packages, c.LastUsed)
+
+				ws := workspace.New(cfg.Root, c.Name, c.Packages, cfg.Repos)
+				return ws.Create()
+			}
+
+			err := config.WithConfig(fn)
 			if err != nil {
 				log.Fatalln(err)
 			}
-
-			f, err := forms.FindWorkspace(cfg.Workspaces)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			c, err := forms.CloneWorkspace(f.Name, f.Packages)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			cfg.Workspaces[c.Name] = config.NewWorkspaceProfile(c.Packages, c.LastUsed)
-
-			err = config.WriteToFile(cfg)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			ws := workspace.New(cfg.Root, c.Name, c.Packages, cfg.Repos)
-			ws.Create()
 		},
 	}
 	addWsCmd = &cobra.Command{
 		Use:     "add",
 		Aliases: []string{"a"},
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.ReadFromFile()
+			fn := func(cfg *config.Config) error {
+				if cfg.Workspaces == nil {
+					cfg.Workspaces = make(config.Workspace)
+				}
+
+				r, err := forms.NewWorkspace(cfg.Repos)
+				if err != nil {
+					return err
+				}
+
+				cfg.Workspaces[r.Name] = config.NewWorkspaceProfile(r.Packages, r.LastUsed)
+
+				ws := workspace.New(cfg.Root, r.Name, r.Packages, cfg.Repos)
+				return ws.Create()
+			}
+
+			err := config.WithConfig(fn)
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if cfg.Workspaces == nil {
-				cfg.Workspaces = make(config.Workspace)
-			}
-
-			r, err := forms.NewWorkspace(cfg.Repos)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			cfg.Workspaces[r.Name] = config.NewWorkspaceProfile(r.Packages, r.LastUsed)
-
-			err = config.WriteToFile(cfg)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			ws := workspace.New(cfg.Root, r.Name, r.Packages, cfg.Repos)
-			ws.Create()
 		},
 	}
 	editWsCmd = &cobra.Command{
 		Use:     "edit",
 		Aliases: []string{"e"},
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.ReadFromFile()
+
+			fn := func(cfg *config.Config) error {
+				if cfg.Workspaces == nil {
+					cfg.Workspaces = make(config.Workspace)
+				}
+
+				r, err := forms.FindWorkspace(cfg.Workspaces)
+				if err != nil {
+					return err
+				}
+
+				e, err := forms.EditWorkspace(r.Name, r.Packages, cfg.Repos)
+				if err != nil {
+					return err
+				}
+
+				cfg.Workspaces[e.Name] = config.NewWorkspaceProfile(e.Packages, e.LastUsed)
+
+				ws := workspace.New(cfg.Root, e.Name, e.Packages, cfg.Repos)
+				return ws.Create()
+			}
+
+			err := config.WithConfig(fn)
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if cfg.Workspaces == nil {
-				cfg.Workspaces = make(config.Workspace)
-			}
-
-			r, err := forms.FindWorkspace(cfg.Workspaces)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			e, err := forms.EditWorkspace(r.Name, r.Packages, cfg.Repos)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			cfg.Workspaces[e.Name] = config.NewWorkspaceProfile(e.Packages, e.LastUsed)
-
-			err = config.WriteToFile(cfg)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			ws := workspace.New(cfg.Root, e.Name, e.Packages, cfg.Repos)
-			ws.Create()
 		},
 	}
 	cleanWSCmd = &cobra.Command{
 		Use: "clean",
 		Run: func(cmd *cobra.Command, args []string) {
 
-			fn := func(cfg config.Config) {
+			fn := func(cfg *config.Config) error {
 
 				ok, err := forms.CleanWorkspace()
 				if err != nil {
-					log.Fatalln(err)
+					return err
 				}
 
 				if !ok {
-					return
+					return nil
 				}
 
-				workspace.Clean(cfg.Root, cfg.Workspaces)
+				return workspace.Clean(cfg.Root, cfg.Workspaces)
 			}
 
-			err := config.GetConfig(fn)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
+			HandleConfig(fn)
 		},
 	}
 )
