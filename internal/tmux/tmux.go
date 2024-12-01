@@ -1,6 +1,7 @@
 package tmux
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -105,4 +106,35 @@ func IsInstalled() (error, bool) {
 	}
 	fmt.Printf("tmux version: %s\n", output)
 	return nil, true
+}
+
+func ListSessions() ([]string, error) {
+	cmd := exec.Command("tmux", "list-sessions", "-F", "#S")
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("error running tmux command: %s, stderr: %s", err, stderr.String())
+	}
+
+	sessions := strings.Split(strings.TrimSpace(out.String()), "\n")
+	return sessions, nil
+}
+
+func RemoveSession(session string) error {
+	cmd := exec.Command("tmux", "kill-session", "-t", session)
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to remove tmux session '%s': %s", session, stderr.String())
+	}
+
+	return nil
 }

@@ -19,6 +19,7 @@ func Execute() error {
 }
 
 func init() {
+	rootCmd.AddCommand(tmuxCmd)
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(wsCmd)
 	rootCmd.AddCommand(repoCmd)
