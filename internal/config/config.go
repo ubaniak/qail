@@ -45,11 +45,16 @@ func NewWorkspaceProfile(repos []string, lastUsed time.Time) WorkspaceProfile {
 	}
 }
 
+type PostInstallScripts struct {
+	Repo map[string][]string `json:"repo"`
+}
+
 type Config struct {
-	Root       string            `json:"root"`
-	Editor     string            `json:"editor"`
-	Workspaces Workspace         `json:"workspaces"`
-	Repos      map[string]string `json:"repos"`
+	Root               string             `json:"root"`
+	Editor             string             `json:"editor"`
+	Workspaces         Workspace          `json:"workspaces"`
+	Repos              map[string]string  `json:"repos"`
+	PostInstallScripts PostInstallScripts `json:"post_install_scripts"`
 }
 
 func ValidateConfig() error {

@@ -1,8 +1,9 @@
 package main
 
-import "qail/cmd"
+import (
+	"qail/cmd"
+)
 
 func main() {
 	cmd.Execute()
-
 }

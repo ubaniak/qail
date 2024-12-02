@@ -8,7 +8,7 @@ var (
 	rootCmd = &cobra.Command{
 		Use:   "qail",
 		Short: "A workplace manager",
-		Long:  "Manage your repos in style",
+		Long:  "Manage your repos in style with qail",
 	}
 )
 
@@ -19,6 +19,7 @@ func Execute() error {
 }
 
 func init() {
+	rootCmd.AddCommand(scriptsCmd)
 	rootCmd.AddCommand(tmuxCmd)
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(wsCmd)

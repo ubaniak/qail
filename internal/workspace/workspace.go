@@ -9,25 +9,34 @@ import (
 
 	"github.com/atotto/clipboard"
 
+	"qail/internal/color"
 	"qail/internal/config"
 	"qail/internal/git"
+	"qail/internal/scripts"
 	"qail/internal/tmux"
 )
 
 type Workspace struct {
-	Root     string
-	Name     string
-	Packages []string
-	Repos    map[string]string
+	Root            string
+	Name            string
+	Packages        []string
+	Repos           map[string]string
+	RepoPostInstall map[string][]string
 }
 
 func New(root, name string, packages []string, repos map[string]string) Workspace {
 	return Workspace{
-		Root:     root,
-		Name:     name,
-		Packages: packages,
-		Repos:    repos,
+		Root:            root,
+		Name:            name,
+		Packages:        packages,
+		Repos:           repos,
+		RepoPostInstall: make(map[string][]string),
 	}
+}
+
+func (w *Workspace) WithRepoPostInstallScripts(p map[string][]string) *Workspace {
+	w.RepoPostInstall = p
+	return w
 }
 
 func (w Workspace) Create() error {
@@ -44,11 +53,17 @@ func (w Workspace) Create() error {
 	fmt.Printf("Creating workspace %s ...\n", wsPath)
 	for _, p := range w.Packages {
 		fmt.Printf("Adding package %s ...\n", p)
-		r, ok := w.Repos[p]
-		if ok {
-			rPath := path.Join(wsPath, p)
+		rPath := path.Join(wsPath, p)
+		if r, ok := w.Repos[p]; ok {
 			m := fmt.Sprintf("Cloning %s", p)
 			git.ConeWithProgress(r, rPath, m)
+		}
+		if postInstallScipts, ok := w.RepoPostInstall[p]; ok {
+			for _, s := range postInstallScipts {
+				fmt.Printf("%s: %s\n", color.Green("Running post install script"), s)
+				scripts.RunBashScript(s, rPath)
+			}
+
 		}
 	}
 

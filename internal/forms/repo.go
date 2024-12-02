@@ -2,6 +2,7 @@ package forms
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -46,6 +47,17 @@ func getName(n string) (string, error) {
 	return name, nil
 }
 
+func sortRepos(r map[string]string) []string {
+	sorted := make([]string, 0, len(r))
+	for key := range r {
+		sorted = append(sorted, key)
+	}
+
+	sort.Strings(sorted)
+
+	return sorted
+}
+
 func AddRepo() (repoModel, error) {
 
 	repo, err := getRepo()
@@ -69,6 +81,26 @@ func AddRepo() (repoModel, error) {
 		Repo: repo,
 		Name: name,
 	}, nil
+}
+
+func SelectRepo(repos *map[string]string) (string, error) {
+	var name string
+	s := huh.NewSelect[string]().Value(&name)
+
+	var opts []huh.Option[string]
+	for k, v := range *repos {
+		fmtStr := fmt.Sprintf("%s: %s", k, v)
+		opts = append(opts, huh.NewOption(fmtStr, k))
+	}
+
+	s.Options(opts...)
+	f := huh.NewForm(
+		huh.NewGroup(s),
+	)
+
+	err := f.Run()
+	return name, err
+
 }
 
 func RemoveRepo(repos *map[string]string) error {
@@ -111,11 +143,22 @@ func RemoveRepo(repos *map[string]string) error {
 	return nil
 }
 
-func DisplayRepos(p map[string]string) {
-	headers := []string{"Name", "Repo"}
+func DisplayRepos(r map[string]string, postInstallScripts map[string][]string) {
+	headers := []string{"Name", "Repo", "Post Install Scripts"}
 	var rows [][]string
-	for k, v := range p {
+
+	keys := sortRepos(r)
+
+	for _, k := range keys {
+		v := r[k]
 		row := []string{k, v}
+		var ps []string
+		if allScripts, ok := postInstallScripts[k]; ok {
+			for _, script := range allScripts {
+				ps = append(ps, fmt.Sprintf("* %s", script))
+			}
+		}
+		row = append(row, strings.Join(ps, "\n"))
 		rows = append(rows, row)
 	}
 

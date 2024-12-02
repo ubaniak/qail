@@ -141,6 +141,7 @@ var (
 				}
 
 				ws := workspace.New(cfg.Root, r.Name, r.Packages, cfg.Repos)
+				ws.WithRepoPostInstallScripts(cfg.PostInstallScripts.Repo)
 				return ws.Create()
 			}
 			HandleConfig(fn)
@@ -164,6 +165,7 @@ var (
 				cfg.Workspaces[c.Name] = config.NewWorkspaceProfile(c.Packages, c.LastUsed)
 
 				ws := workspace.New(cfg.Root, c.Name, c.Packages, cfg.Repos)
+				ws.WithRepoPostInstallScripts(cfg.PostInstallScripts.Repo)
 				return ws.Create()
 			}
 
@@ -190,6 +192,7 @@ var (
 				cfg.Workspaces[r.Name] = config.NewWorkspaceProfile(r.Packages, r.LastUsed)
 
 				ws := workspace.New(cfg.Root, r.Name, r.Packages, cfg.Repos)
+				ws.WithRepoPostInstallScripts(cfg.PostInstallScripts.Repo)
 				return ws.Create()
 			}
 
@@ -222,6 +225,7 @@ var (
 				cfg.Workspaces[e.Name] = config.NewWorkspaceProfile(e.Packages, e.LastUsed)
 
 				ws := workspace.New(cfg.Root, e.Name, e.Packages, cfg.Repos)
+				ws.WithRepoPostInstallScripts(cfg.PostInstallScripts.Repo)
 				return ws.Create()
 			}
 

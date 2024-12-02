@@ -1,13 +1,14 @@
 package cmd
 
 import (
-	"fmt"
+	"errors"
 	"log"
 
 	"github.com/spf13/cobra"
 
 	"qail/internal/config"
 	forms "qail/internal/forms"
+	"qail/internal/scripts"
 )
 
 var (
@@ -24,7 +25,7 @@ var (
 			fn := func(cfg *config.Config) error {
 				err := forms.RemoveRepo(&cfg.Repos)
 				if err != nil {
-					log.Fatalln(err)
+					return err
 				}
 
 				if cfg.Repos == nil {
@@ -63,9 +64,49 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			fn := func(cfg *config.Config) error {
 				if cfg.Repos == nil {
-					fmt.Println("No packages found. Please add a package")
+					return errors.New("no packages found. Please add a package")
 				}
-				forms.DisplayRepos(cfg.Repos)
+				forms.DisplayRepos(cfg.Repos, cfg.PostInstallScripts.Repo)
+				return nil
+			}
+			HandleConfig(fn)
+		},
+	}
+	postInstallScriptRepoCmd = &cobra.Command{
+		Use:     "post-install-script",
+		Aliases: []string{"p"},
+		Args:    cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			fn := func(cfg *config.Config) error {
+				if cfg.PostInstallScripts.Repo == nil {
+					cfg.PostInstallScripts.Repo = make(map[string][]string)
+				}
+
+				r, err := forms.SelectRepo(&cfg.Repos)
+				if err != nil {
+					return err
+				}
+
+				var selected []string
+				if _, ok := cfg.PostInstallScripts.Repo[r]; !ok {
+					cfg.PostInstallScripts.Repo[r] = []string{}
+				}
+
+				selected = cfg.PostInstallScripts.Repo[r]
+
+				scripts, err := scripts.ListScripts()
+				if err != nil {
+					return nil
+				}
+
+				updatedScripts, err := forms.SelectScripts(scripts, selected)
+
+				if err != nil {
+					return err
+				}
+
+				cfg.PostInstallScripts.Repo[r] = updatedScripts
+
 				return nil
 			}
 			HandleConfig(fn)
@@ -84,6 +125,8 @@ func runRepoCmd() cobraReturnType {
 				listRepoCmd.Execute()
 			case "remove":
 				rmRepoCmd.Execute()
+			case "post-install-script":
+				postInstallScriptRepoCmd.Execute()
 			}
 		}
 
@@ -91,5 +134,5 @@ func runRepoCmd() cobraReturnType {
 }
 
 func init() {
-	repoCmd.AddCommand(addRepoCmd, listRepoCmd, rmRepoCmd)
+	repoCmd.AddCommand(addRepoCmd, listRepoCmd, rmRepoCmd, postInstallScriptRepoCmd)
 }
