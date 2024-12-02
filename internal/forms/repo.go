@@ -85,7 +85,7 @@ func AddRepo() (repoModel, error) {
 
 func SelectRepo(repos *map[string]string) (string, error) {
 	var name string
-	s := huh.NewSelect[string]().Value(&name)
+	s := huh.NewSelect[string]().Title("Select repo").Value(&name)
 
 	var opts []huh.Option[string]
 	for k, v := range *repos {
