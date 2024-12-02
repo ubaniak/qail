@@ -66,7 +66,7 @@ func (w Workspace) Create() error {
 		}
 	}
 
-	fmt.Println(color.Green("----- Done :) -----"))
+	fmt.Println(color.Green("Done :)"))
 
 	return nil
 }
@@ -120,16 +120,16 @@ func Clean(root string, ws config.Workspace) error {
 		return err
 	}
 
-	fmt.Println("Reading...", root)
+	fmt.Println("Reading ...", color.Cyan(root))
 
 	for _, file := range files {
 		if !file.IsDir() {
 			continue
 		}
-		fmt.Println("Folder name", file.Name())
+		fmt.Println("Folder name", color.Cyan(file.Name()))
 		_, ok := ws[file.Name()]
 		if !ok {
-			fmt.Println("--> Deleting", file.Name())
+			fmt.Printf("%s Deleting: %s\n", color.Yellow(">>>"), color.Cyan(file.Name()))
 			err := os.RemoveAll(path.Join(root, file.Name()))
 			if err != nil {
 				return err

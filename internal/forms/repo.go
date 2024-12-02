@@ -47,7 +47,7 @@ func getName(n string) (string, error) {
 	return name, nil
 }
 
-func sortRepos(r map[string]string) []string {
+func SortRepos(r map[string]string) []string {
 	sorted := make([]string, 0, len(r))
 	for key := range r {
 		sorted = append(sorted, key)
@@ -147,7 +147,7 @@ func DisplayRepos(r map[string]string, postInstallScripts map[string][]string) {
 	headers := []string{"Name", "Repo", "Post Install Scripts"}
 	var rows [][]string
 
-	keys := sortRepos(r)
+	keys := SortRepos(r)
 
 	for _, k := range keys {
 		v := r[k]

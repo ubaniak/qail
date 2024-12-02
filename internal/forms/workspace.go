@@ -44,12 +44,14 @@ func formatWorkspaces(ws config.Workspace) ([]string, []string) {
 
 func NewWorkspace(allRepos map[string]string) (workspaceModel, error) {
 	var name string
-	var repos []string
+	var selectedRepos []string
 
-	s := huh.NewMultiSelect[string]().Value(&repos)
+	s := huh.NewMultiSelect[string]().Value(&selectedRepos)
+	repoNames := SortRepos(allRepos)
 
 	var opts []huh.Option[string]
-	for k, v := range allRepos {
+	for _, k := range repoNames {
+		v := allRepos[k]
 		fmtStr := fmt.Sprintf("%s: %s", k, v)
 		opts = append(opts, huh.NewOption(fmtStr, k))
 	}
@@ -68,7 +70,7 @@ func NewWorkspace(allRepos map[string]string) (workspaceModel, error) {
 
 	return workspaceModel{
 		Name:     name,
-		Packages: repos,
+		Packages: selectedRepos,
 		LastUsed: time.Now().UTC(),
 	}, nil
 }
