@@ -57,8 +57,8 @@ func (w Workspace) Create() error {
 			m := fmt.Sprintf("Cloning %s", color.Cyan(p))
 			git.ConeWithProgress(r, rPath, m)
 		}
-		if postInstallScipts, ok := w.RepoPostInstall[p]; ok {
-			for _, s := range postInstallScipts {
+		if postInstallScripts, ok := w.RepoPostInstall[p]; ok {
+			for _, s := range postInstallScripts {
 				fmt.Printf("   * Running post install script: %s\n", color.Cyan(s))
 				scripts.RunBashScript(s, rPath)
 			}
