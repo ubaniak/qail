@@ -146,5 +146,3 @@ ls -l
 ```sh
 qail repo p
 ```
-
-Scripts will be run in the order they are added
