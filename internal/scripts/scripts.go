@@ -37,28 +37,8 @@ func GetScriptDir() (string, error) {
 func CreateBashScript(scriptName string) error {
 	scriptContent := `#!/bin/bash
 
-# Function: run
-# Takes a folder path as input and performs an action
-run() {
-    local folder_path="$1"
-
-    if [ -z "$folder_path" ]; then
-        echo "Usage: run <folder_path>"
-        return 1
-    fi
-
-    if [ ! -d "$folder_path" ]; then
-        echo "Error: Folder '$folder_path' not found."
-        return 1
-    fi
-
-    echo "Processing folder: $folder_path"
-    # Add your custom logic here (e.g., listing files)
-    ls -l "$folder_path"
-}
-
-# Execute the run function with the first argument
-run "$@"
+# Add your custom logic here 
+ls -l 
 `
 
 	scriptsDir, err := GetScriptDir()
@@ -104,13 +84,14 @@ func RemoveScript(scriptName string) error {
 	return os.Remove(scriptPath)
 }
 
-func RunBashScript(scriptName, path string) error {
+func RunBashScript(scriptName, dir string) error {
 	scriptsDir, err := GetScriptDir()
 	if err != nil {
 		return err
 	}
 	scriptPath := filepath.Join(scriptsDir, scriptName)
-	cmd := exec.Command("/bin/bash", scriptPath, path)
+	cmd := exec.Command("/bin/bash", scriptPath)
+	cmd.Dir = dir
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
