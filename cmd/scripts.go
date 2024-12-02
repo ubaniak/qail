@@ -13,7 +13,7 @@ import (
 var (
 	scriptsCmd = &cobra.Command{
 		Use:     "scripts",
-		Short:   "manage pre-post install scripts",
+		Short:   "manage pre|post install scripts",
 		Aliases: []string{"s"},
 		Run:     runScriptsCmd(),
 	}
