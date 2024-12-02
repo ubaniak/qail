@@ -65,14 +65,21 @@ func (w Workspace) Create() error {
 			git.ConeWithProgress(r, rPath, m)
 		}
 		if postInstallScripts, ok := w.RepoPostInstall[p]; ok {
+			if len(postInstallScripts) > 0 {
+				fmt.Printf("Running post install scripts for %s: %s \n", color.Green("repos"), color.Cyan(p))
+			}
 			for _, s := range postInstallScripts {
 				fmt.Printf("   * Running post install script: %s\n", color.Cyan(s))
 				scripts.RunBashScript(s, rPath)
 			}
 		}
+		fmt.Println()
 	}
 
 	if postInstallScripts, ok := w.WSPostInstall[w.Name]; ok {
+		if len(postInstallScripts) > 0 {
+			fmt.Printf("Running post install scripts for %s: %s \n", color.Green("workspace"), color.Cyan(w.Name))
+		}
 		for _, s := range postInstallScripts {
 			fmt.Printf("   * Running post install script: %s\n", color.Cyan(s))
 			scripts.RunBashScript(s, wsPath)
