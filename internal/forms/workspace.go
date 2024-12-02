@@ -143,7 +143,7 @@ func DisplayWorkspaces(ws config.Workspace) {
 	displayTable(headers, rows)
 }
 
-func EditWorkspace(n string, packages []string, allPackages map[string]string) (workspaceModel, error) {
+func EditWorkspace(n string, packages []string, allRepos map[string]string) (workspaceModel, error) {
 	var pkgs []string
 
 	s := huh.NewMultiSelect[string]().Value(&pkgs)
@@ -154,7 +154,11 @@ func EditWorkspace(n string, packages []string, allPackages map[string]string) (
 	}
 
 	var opts []huh.Option[string]
-	for k, v := range allPackages {
+
+	repoNames := SortRepos(allRepos)
+
+	for _, k := range repoNames {
+		v := allRepos[k]
 		fmtStr := fmt.Sprintf("%s: %s", k, v)
 		_, ok := pkgMap[k]
 
