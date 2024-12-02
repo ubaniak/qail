@@ -8,14 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/atotto/clipboard"
+	"qail/internal/clip"
 )
 
 func Attach(sessionName string) {
-	cmd := fmt.Sprintf("tmux a -t %s\n", sessionName)
-	fmt.Println(cmd)
-	fmt.Println("copied to clipboard")
-	clipboard.WriteAll(cmd)
+	cmd := fmt.Sprintf("tmux a -t %s", sessionName)
+	clip.Cmd(cmd)
 }
 
 func SessionName(path string) string {

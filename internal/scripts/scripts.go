@@ -7,9 +7,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 
+	"qail/internal/clip"
 	"qail/internal/color"
 )
+
+func SortScripts(scripts []string) []string {
+	sort.Strings(scripts)
+	return scripts
+}
 
 func GetScriptDir() (string, error) {
 	var rootDir string
@@ -98,10 +105,12 @@ func RunBashScript(scriptName, dir string) error {
 	cmd.Stderr = &stderr
 
 	err = cmd.Run()
-	fmt.Println(color.Green("Stdout"))
-	fmt.Println(stdout.String())
+	if stdout.String() != "" {
+		fmt.Printf("%s %s %s\n\n", color.Yellow(">>>"), color.Green("Stdout"), color.Yellow("<<<"))
+		fmt.Println(stdout.String())
+	}
 	if stderr.String() != "" {
-		fmt.Println(color.Red("Stderr"))
+		fmt.Printf("%s %s %s\n\n", color.Yellow(">>>"), color.Red("Stderr"), color.Yellow("<<<"))
 		fmt.Println(stderr.String())
 	}
 
@@ -123,7 +132,7 @@ func ListScripts() ([]string, error) {
 		scriptNames[i] = file.Name()
 	}
 
-	return scriptNames, nil
+	return SortScripts(scriptNames), nil
 }
 
 func Open(editor, scriptName string) error {
@@ -142,4 +151,13 @@ func Open(editor, scriptName string) error {
 
 	_, err = cmd.Output()
 	return err
+}
+
+func Cd() error {
+	scriptDir, err := GetScriptDir()
+	if err != nil {
+		return err
+	}
+	clip.Cd(scriptDir)
+	return nil
 }

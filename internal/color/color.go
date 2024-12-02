@@ -3,13 +3,13 @@ package color
 import "fmt"
 
 var (
-	reset  = "\033[0m"
-	red    = "\033[31m"
-	green  = "\033[32m"
-	yellow = "\033[33m"
-	// blue    = "\033[34m"
-	// magenta = "\033[35m"
-	// cyan    = "\033[36m"
+	reset   = "\033[0m"
+	red     = "\033[31m"
+	green   = "\033[32m"
+	yellow  = "\033[33m"
+	blue    = "\033[34m"
+	magenta = "\033[35m"
+	cyan    = "\033[36m"
 	// gray    = "\033[37m"
 	// white   = "\033[97m"
 )
@@ -28,4 +28,16 @@ func Green(s string) string {
 
 func Yellow(s string) string {
 	return color(yellow, s)
+}
+
+func Blue(s string) string {
+	return color(blue, s)
+}
+
+func Magenta(s string) string {
+	return color(magenta, s)
+}
+
+func Cyan(s string) string {
+	return color(cyan, s)
 }

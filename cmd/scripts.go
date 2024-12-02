@@ -17,6 +17,16 @@ var (
 		Aliases: []string{"s"},
 		Run:     runScriptsCmd(),
 	}
+	cdScriptCmd = &cobra.Command{
+		Use: "cd",
+		Run: func(cmd *cobra.Command, args []string) {
+			fn := func(cfg *config.Config) error {
+				return scripts.Cd()
+			}
+
+			HandleConfig(fn)
+		},
+	}
 	addScriptCmd = &cobra.Command{
 		Use:     "add",
 		Aliases: []string{"a"},
@@ -113,11 +123,13 @@ func runScriptsCmd() cobraReturnType {
 				removeScriptCmd.Execute()
 			case "open":
 				openScriptCmd.Execute()
+			case "cd":
+				cdScriptCmd.Execute()
 			}
 		}
 	}
 }
 
 func init() {
-	scriptsCmd.AddCommand(addScriptCmd, lsScriptCmd, openScriptCmd, removeScriptCmd)
+	scriptsCmd.AddCommand(addScriptCmd, lsScriptCmd, openScriptCmd, removeScriptCmd, cdScriptCmd)
 }

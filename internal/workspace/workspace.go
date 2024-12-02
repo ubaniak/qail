@@ -7,8 +7,7 @@ import (
 	"os/exec"
 	"path"
 
-	"github.com/atotto/clipboard"
-
+	"qail/internal/clip"
 	"qail/internal/color"
 	"qail/internal/config"
 	"qail/internal/git"
@@ -50,24 +49,24 @@ func (w Workspace) Create() error {
 		os.Mkdir(wsPath, 0755)
 	}
 
-	fmt.Printf("Creating workspace %s ...\n", wsPath)
+	fmt.Printf("Creating workspace %s ...\n", color.Cyan(wsPath))
 	for _, p := range w.Packages {
-		fmt.Printf("Adding package %s ...\n", p)
+		fmt.Printf("* Adding package %s ...\n", color.Cyan(p))
 		rPath := path.Join(wsPath, p)
 		if r, ok := w.Repos[p]; ok {
-			m := fmt.Sprintf("Cloning %s", p)
+			m := fmt.Sprintf("Cloning %s", color.Cyan(p))
 			git.ConeWithProgress(r, rPath, m)
 		}
 		if postInstallScipts, ok := w.RepoPostInstall[p]; ok {
 			for _, s := range postInstallScipts {
-				fmt.Printf("%s: %s\n", color.Green("Running post install script"), s)
+				fmt.Printf("   * Running post install script: %s\n", color.Cyan(s))
 				scripts.RunBashScript(s, rPath)
 			}
 
 		}
 	}
 
-	fmt.Println("Done :)")
+	fmt.Println(color.Green("----- Done :) -----"))
 
 	return nil
 }
@@ -96,10 +95,7 @@ func Open(editor, workspace string) {
 }
 
 func Cd(ws string) {
-	cmd := fmt.Sprintf("cd %s\n", ws)
-	fmt.Println(cmd)
-	fmt.Println("copied to clipboard")
-	clipboard.WriteAll(cmd)
+	clip.Cd(ws)
 }
 
 func Tmux(ws string) error {
