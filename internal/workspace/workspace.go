@@ -21,6 +21,7 @@ type Workspace struct {
 	Packages        []string
 	Repos           map[string]string
 	RepoPostInstall map[string][]string
+	WSPostInstall   map[string][]string
 }
 
 func New(root, name string, packages []string, repos map[string]string) Workspace {
@@ -30,11 +31,17 @@ func New(root, name string, packages []string, repos map[string]string) Workspac
 		Packages:        packages,
 		Repos:           repos,
 		RepoPostInstall: make(map[string][]string),
+		WSPostInstall:   make(map[string][]string),
 	}
 }
 
 func (w *Workspace) WithRepoPostInstallScripts(p map[string][]string) *Workspace {
 	w.RepoPostInstall = p
+	return w
+}
+
+func (w *Workspace) WithWSPostInstallScripts(p map[string][]string) *Workspace {
+	w.WSPostInstall = p
 	return w
 }
 
@@ -62,7 +69,13 @@ func (w Workspace) Create() error {
 				fmt.Printf("   * Running post install script: %s\n", color.Cyan(s))
 				scripts.RunBashScript(s, rPath)
 			}
+		}
+	}
 
+	if postInstallScripts, ok := w.WSPostInstall[w.Name]; ok {
+		for _, s := range postInstallScripts {
+			fmt.Printf("   * Running post install script: %s\n", color.Cyan(s))
+			scripts.RunBashScript(s, wsPath)
 		}
 	}
 

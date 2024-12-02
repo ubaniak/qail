@@ -124,8 +124,9 @@ func CloneWorkspace(name string, packages []string) (workspaceModel, error) {
 	}, nil
 }
 
-func DisplayWorkspaces(ws config.Workspace) {
+func DisplayWorkspaces(ws config.Workspace, postInstallScripts map[string][]string) {
 
+	headers := []string{"Name", "Package", "Last Used", "Post install scripts"}
 	keys := SortWorkspaces(ws)
 	var rows [][]string
 	for _, k := range keys {
@@ -134,11 +135,16 @@ func DisplayWorkspaces(ws config.Workspace) {
 		for _, p := range v.Repos {
 			fmtPkg = append(fmtPkg, fmt.Sprintf("* %s", p))
 		}
-		row := []string{k, strings.Join(fmtPkg, "\n"), v.LastUsed.Format(time.RFC822)}
+		psScripts := []string{}
+		if scripts, ok := postInstallScripts[k]; ok {
+			for _, s := range scripts {
+				psScripts = append(psScripts, fmt.Sprintf("* %s", s))
+			}
+		}
+
+		row := []string{k, strings.Join(fmtPkg, "\n"), v.LastUsed.Format(time.RFC822), strings.Join(psScripts, "\n")}
 		rows = append(rows, row)
 	}
-
-	headers := []string{"Name", "Package", "Last Used"}
 
 	displayTable(headers, rows)
 }

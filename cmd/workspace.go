@@ -11,6 +11,7 @@ import (
 
 	"qail/internal/config"
 	forms "qail/internal/forms"
+	"qail/internal/scripts"
 	"qail/internal/workspace"
 )
 
@@ -122,7 +123,7 @@ var (
 		Args:    cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			fn := func(cfg *config.Config) error {
-				forms.DisplayWorkspaces((cfg.Workspaces))
+				forms.DisplayWorkspaces(cfg.Workspaces, cfg.PostInstallScripts.Workspace)
 				return nil
 			}
 
@@ -142,6 +143,7 @@ var (
 
 				ws := workspace.New(cfg.Root, r.Name, r.Packages, cfg.Repos)
 				ws.WithRepoPostInstallScripts(cfg.PostInstallScripts.Repo)
+				ws.WithWSPostInstallScripts(cfg.PostInstallScripts.Workspace)
 				return ws.Create()
 			}
 			HandleConfig(fn)
@@ -166,6 +168,7 @@ var (
 
 				ws := workspace.New(cfg.Root, c.Name, c.Packages, cfg.Repos)
 				ws.WithRepoPostInstallScripts(cfg.PostInstallScripts.Repo)
+				ws.WithWSPostInstallScripts(cfg.PostInstallScripts.Workspace)
 				return ws.Create()
 			}
 
@@ -193,6 +196,7 @@ var (
 
 				ws := workspace.New(cfg.Root, r.Name, r.Packages, cfg.Repos)
 				ws.WithRepoPostInstallScripts(cfg.PostInstallScripts.Repo)
+				ws.WithWSPostInstallScripts(cfg.PostInstallScripts.Workspace)
 				return ws.Create()
 			}
 
@@ -226,6 +230,7 @@ var (
 
 				ws := workspace.New(cfg.Root, e.Name, e.Packages, cfg.Repos)
 				ws.WithRepoPostInstallScripts(cfg.PostInstallScripts.Repo)
+				ws.WithWSPostInstallScripts(cfg.PostInstallScripts.Workspace)
 				return ws.Create()
 			}
 
@@ -256,6 +261,46 @@ var (
 			HandleConfig(fn)
 		},
 	}
+	postInstallScriptWsCmd = &cobra.Command{
+		Use:     "post-install-script",
+		Aliases: []string{"p"},
+		Args:    cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			fn := func(cfg *config.Config) error {
+				if cfg.PostInstallScripts.Workspace == nil {
+					cfg.PostInstallScripts.Workspace = make(map[string][]string)
+				}
+
+				ws, err := forms.FindWorkspace(cfg.Workspaces)
+				if err != nil {
+					return err
+				}
+
+				var selected []string
+				if _, ok := cfg.PostInstallScripts.Workspace[ws.Name]; !ok {
+					cfg.PostInstallScripts.Workspace[ws.Name] = []string{}
+				}
+
+				selected = cfg.PostInstallScripts.Workspace[ws.Name]
+
+				scripts, err := scripts.ListScripts()
+				if err != nil {
+					return nil
+				}
+
+				updatedScripts, err := forms.SelectScripts(scripts, selected)
+
+				if err != nil {
+					return err
+				}
+
+				cfg.PostInstallScripts.Workspace[ws.Name] = updatedScripts
+
+				return nil
+			}
+			HandleConfig(fn)
+		},
+	}
 )
 
 func runWsCmd() cobraReturnType {
@@ -280,6 +325,8 @@ func runWsCmd() cobraReturnType {
 				openWsCmd.Execute()
 			case "clean":
 				cleanWSCmd.Execute()
+			case "post-install-scripts":
+				postInstallScriptWsCmd.Execute()
 			}
 
 		}
@@ -287,5 +334,5 @@ func runWsCmd() cobraReturnType {
 }
 
 func init() {
-	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd, tmuxWsCmd)
+	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd, tmuxWsCmd, postInstallScriptWsCmd)
 }
