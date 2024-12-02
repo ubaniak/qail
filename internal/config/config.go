@@ -46,7 +46,8 @@ func NewWorkspaceProfile(repos []string, lastUsed time.Time) WorkspaceProfile {
 }
 
 type PostInstallScripts struct {
-	Repo map[string][]string `json:"repo"`
+	Repo      map[string][]string `json:"repo"`
+	Workspace map[string][]string `json:"workspace"`
 }
 
 type Config struct {
