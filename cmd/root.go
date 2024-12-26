@@ -7,8 +7,8 @@ import (
 var (
 	rootCmd = &cobra.Command{
 		Use:   "qail",
-		Short: "A workplace manager",
-		Long:  "Manage your repos in style with qail",
+		Short: "A workspace manager",
+		Long:  "Manage your workspace in style with qail",
 	}
 )
 
