@@ -4,7 +4,7 @@
   - [Usage](#usage)
     - [Setup](#setup)
     - [Repository management](#repository-management)
-    - [Workspace managemet](#workspace-managemet)
+    - [Workspace management](#workspace-management)
     - [Open a workspace](#open-a-workspace)
     - [Tmux](#tmux)
     - [Scripts](#scripts)
@@ -80,7 +80,7 @@ you can manage your repos with the `repo` command.
 qail repo --help
 ```
 
-### Workspace managemet
+### Workspace management
 
 Create a workspace with
 
