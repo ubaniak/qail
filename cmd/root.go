@@ -8,7 +8,7 @@ var (
 	rootCmd = &cobra.Command{
 		Use:   "qail",
 		Short: "A workspace manager",
-		Long:  "Manage your repos in style with qail",
+		Long:  "Manage your workspace in style with qail",
 	}
 )
 
