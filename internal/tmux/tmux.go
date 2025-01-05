@@ -20,6 +20,10 @@ func SessionName(path string) string {
 	return filepath.Base(path)
 }
 
+func isEven(i int) bool {
+	return i%2 == 0
+}
+
 func Launch(folderPath string) error {
 	// Change directory to the given folder
 	err := os.Chdir(folderPath)
@@ -50,30 +54,32 @@ func Launch(folderPath string) error {
 		return fmt.Errorf("failed to create new window: %v", err)
 	}
 
+	var folderNumber = 0
+	var windowIndex = 0
+
 	// Split panes for each subfolder
-	for i, subFolder := range subFolders {
+	for _, subFolder := range subFolders {
 		if subFolder.IsDir() && strings.HasPrefix(subFolder.Name(), ".") {
 			continue
 		}
 		if subFolder.IsDir() {
 			subfolderPath := filepath.Join(folderPath, subFolder.Name())
-			if i == 0 {
-				// Use the first pane for the first subfolder
-				cmd = exec.Command("tmux", "send-keys", "-t", fmt.Sprintf("%s:1.0", sessionName), fmt.Sprintf("cd %s", subfolderPath), "C-m")
-			} else {
-				// Split the pane and navigate to the subfolder
-				cmd = exec.Command("tmux", "split-window", "-t", fmt.Sprintf("%s:1", sessionName), "-c", subfolderPath)
-			}
-			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to split window: %v", err)
-			}
-		}
-	}
 
-	// Select the layout for better visibility
-	cmd = exec.Command("tmux", "select-layout", "-t", fmt.Sprintf("%s:1", sessionName), "tiled")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to select layout: %v", err)
+			if isEven(folderNumber) {
+				windowIndex++
+				cmd = exec.Command("tmux", "new-window", "-t", sessionName, "-c", subfolderPath, "-n", "SubFolders"+fmt.Sprintf("%d", windowIndex))
+				if err := cmd.Run(); err != nil {
+					return fmt.Errorf("failed to create new window %s, %v", cmd, err)
+				}
+			} else {
+				cmd = exec.Command("tmux", "split-window", "-t", fmt.Sprintf("%s:%d", sessionName, windowIndex), "-c", subfolderPath, "-h")
+
+				if err := cmd.Run(); err != nil {
+					return fmt.Errorf("failed to split window: %v, cmd: %s", err, cmd)
+				}
+			}
+			folderNumber++
+		}
 	}
 
 	return nil
