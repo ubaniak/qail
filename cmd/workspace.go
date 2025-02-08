@@ -22,6 +22,24 @@ var (
 		Short:   "Manage your workspaces",
 		Run:     runWsCmd(),
 	}
+	exploreCmd = &cobra.Command{
+		Use:     "explore",
+		Aliases: []string{"exp"},
+		Run: func(cmd *cobra.Command, args []string) {
+			fn := func(cfg *config.Config) error {
+				r, err := forms.FindWorkspace(cfg.Workspaces)
+				if err != nil {
+					return err
+				}
+
+				ws := path.Join(cfg.Root, r.Name)
+
+				workspace.Explore(ws)
+				return nil
+			}
+			HandleConfig(fn)
+		},
+	}
 	openWsCmd = &cobra.Command{
 		Use:     "open",
 		Aliases: []string{"o"},
@@ -325,6 +343,8 @@ func runWsCmd() cobraReturnType {
 				openWsCmd.Execute()
 			case "clean":
 				cleanWSCmd.Execute()
+			case "explore":
+				exploreCmd.Execute()
 			case "post-install-scripts":
 				postInstallScriptWsCmd.Execute()
 			}
@@ -334,5 +354,5 @@ func runWsCmd() cobraReturnType {
 }
 
 func init() {
-	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd, tmuxWsCmd, postInstallScriptWsCmd)
+	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd, tmuxWsCmd, postInstallScriptWsCmd, exploreCmd)
 }

@@ -114,6 +114,14 @@ func Open(editor, workspace string) {
 	cmd.Output()
 }
 
+func Explore(ws string) (string, error) {
+	cmd := exec.Command("open", ws)
+
+	out, err := cmd.Output()
+
+	return string(out), err
+}
+
 func Cd(ws string) {
 	clip.Cd(ws)
 }
