@@ -9,10 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"qail/internal/config"
-	forms "qail/internal/forms"
-	"qail/internal/scripts"
-	"qail/internal/workspace"
+	"github.com/ubaniak/qail/internal/config"
+	"github.com/ubaniak/qail/internal/forms"
+	"github.com/ubaniak/qail/internal/scripts"
+	"github.com/ubaniak/qail/internal/workspace"
 )
 
 var (
@@ -21,6 +21,24 @@ var (
 		Aliases: []string{"ws"},
 		Short:   "Manage your workspaces",
 		Run:     runWsCmd(),
+	}
+	runWsScript = &cobra.Command{
+		Use:     "run-script",
+		Aliases: []string{"rs"},
+		Run: func(cmd *cobra.Command, args []string) {
+			fn := func(cfg *config.Config) error {
+				r, err := forms.FindWorkspace(cfg.Workspaces)
+				if err != nil {
+					return err
+				}
+
+				ws := path.Join(cfg.Root, r.Name)
+
+				workspace.Explore(ws)
+				return nil
+			}
+			HandleConfig(fn)
+		},
 	}
 	exploreCmd = &cobra.Command{
 		Use:     "explore",

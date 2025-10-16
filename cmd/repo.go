@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"qail/internal/config"
-	forms "qail/internal/forms"
-	"qail/internal/scripts"
+	"github.com/ubaniak/qail/internal/config"
+	"github.com/ubaniak/qail/internal/forms"
+	"github.com/ubaniak/qail/internal/scripts"
 )
 
 var (

@@ -8,7 +8,7 @@ import (
 
 	"github.com/charmbracelet/huh"
 
-	"qail/internal/config"
+	"github.com/ubaniak/qail/internal/config"
 )
 
 type workspaceModel struct {

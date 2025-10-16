@@ -2,7 +2,8 @@ package git
 
 import (
 	"os/exec"
-	"qail/internal/forms"
+
+	"github.com/ubaniak/qail/internal/forms"
 )
 
 func runCmd(args []string) (string, error) {

@@ -3,9 +3,9 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"qail/internal/config"
-	"qail/internal/forms"
-	"qail/internal/tmux"
+	"github.com/ubaniak/qail/internal/config"
+	"github.com/ubaniak/qail/internal/forms"
+	"github.com/ubaniak/qail/internal/tmux"
 )
 
 var (

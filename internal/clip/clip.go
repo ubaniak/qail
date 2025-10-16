@@ -4,8 +4,7 @@ import (
 	"fmt"
 
 	"github.com/atotto/clipboard"
-
-	"qail/internal/color"
+	"github.com/ubaniak/qail/internal/color"
 )
 
 func Cd(path string) {

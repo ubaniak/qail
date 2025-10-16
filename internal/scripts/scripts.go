@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"qail/internal/clip"
-	"qail/internal/color"
+	"github.com/ubaniak/qail/internal/clip"
+	"github.com/ubaniak/qail/internal/color"
 )
 
 func SortScripts(scripts []string) []string {

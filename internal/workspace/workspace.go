@@ -7,12 +7,12 @@ import (
 	"os/exec"
 	"path"
 
-	"qail/internal/clip"
-	"qail/internal/color"
-	"qail/internal/config"
-	"qail/internal/git"
-	"qail/internal/scripts"
-	"qail/internal/tmux"
+	"github.com/ubaniak/qail/internal/clip"
+	"github.com/ubaniak/qail/internal/color"
+	"github.com/ubaniak/qail/internal/config"
+	"github.com/ubaniak/qail/internal/git"
+	"github.com/ubaniak/qail/internal/scripts"
+	"github.com/ubaniak/qail/internal/tmux"
 )
 
 type Workspace struct {

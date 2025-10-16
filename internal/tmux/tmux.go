@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"qail/internal/clip"
+	"github.com/ubaniak/qail/internal/clip"
 )
 
 func Attach(sessionName string) {
