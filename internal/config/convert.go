@@ -17,84 +17,95 @@ type OldConfig struct {
 }
 
 func BackUpConfig() {
-	dest := filepath.Join(rootDir, "config.json.bak")
-
-	err := copyFile(configPath, dest)
-	if err != nil {
-		panic(fmt.Sprintf("failed to copy config file: %v", err))
+	dest := filepath.Join(rootDir, "qail.db.bak")
+	if err := copyFile(dbPath, dest); err != nil {
+		panic(fmt.Sprintf("failed to back up database: %v", err))
 	}
 }
 
 func RestoreConfig() {
-	dest := filepath.Join(rootDir, "config.json.bak")
-
-	err := copyFile(dest, configPath)
-	if err != nil {
-		panic(fmt.Sprintf("failed to copy config file: %v", err))
+	src := filepath.Join(rootDir, "qail.db.bak")
+	if err := copyFile(src, dbPath); err != nil {
+		panic(fmt.Sprintf("failed to restore database: %v", err))
 	}
-
 }
 
+// jsonConfig mirrors Config with JSON tags for parsing config.json.
+type jsonConfig struct {
+	Root               string                    `json:"root"`
+	Editor             string                    `json:"editor"`
+	Workspaces         map[string]jsonWorkspace  `json:"workspaces"`
+	Repos              map[string]string         `json:"repos"`
+	PostInstallScripts jsonPostInstallScripts    `json:"post_install_scripts"`
+}
+
+type jsonWorkspace struct {
+	Repos    []string  `json:"repos"`
+	LastUsed time.Time `json:"last_used"`
+}
+
+type jsonPostInstallScripts struct {
+	Repo      map[string][]string `json:"repo"`
+	Workspace map[string][]string `json:"workspace"`
+}
+
+// ConvertOldToNew reads config.json (either old or new format) and imports it into the SQLite database.
 func ConvertOldToNew() {
-	var old OldConfig
-	new := Config{}
-
-	file, err := os.ReadFile(configPath)
+	jsonPath := filepath.Join(rootDir, "config.json")
+	file, err := os.ReadFile(jsonPath)
 	if err != nil {
-		panic(fmt.Sprintf("failed to read input file: %v", err))
+		panic(fmt.Sprintf("failed to read config.json: %v", err))
 	}
 
-	err = json.Unmarshal(file, &old)
-	if err != nil {
-		panic(fmt.Sprintf("failed to unmarshal input JSON: %v", err))
+	// Try new JSON format first (workspaces with repos+last_used objects).
+	var jcfg jsonConfig
+	if err := json.Unmarshal(file, &jcfg); err != nil {
+		panic(fmt.Sprintf("failed to parse config.json: %v", err))
 	}
 
-	new.Editor = old.Editor
-	new.Repos = old.Repos
-	new.Root = old.Root
-	new.Workspaces = make(map[string]WorkspaceProfile)
+	cfg := Config{
+		Root:   jcfg.Root,
+		Editor: jcfg.Editor,
+		Repos:  jcfg.Repos,
+		Workspaces: make(Workspace, len(jcfg.Workspaces)),
+		PostInstallScripts: PostInstallScripts{
+			Repo:      jcfg.PostInstallScripts.Repo,
+			Workspace: jcfg.PostInstallScripts.Workspace,
+		},
+	}
 
-	for key, value := range old.Workspaces {
-		new.Workspaces[key] = WorkspaceProfile{
-			Repos:    value,
-			LastUsed: time.Now().UTC(),
+	for name, ws := range jcfg.Workspaces {
+		lastUsed := ws.LastUsed
+		if lastUsed.IsZero() {
+			lastUsed = time.Now().UTC()
+		}
+		cfg.Workspaces[name] = WorkspaceProfile{
+			Repos:    ws.Repos,
+			LastUsed: lastUsed,
 		}
 	}
 
-	data, err := json.Marshal(new)
-	if err != nil {
-		panic(fmt.Sprintf("failed to marshal input JSON: %v", err))
+	if err := WriteToFile(cfg); err != nil {
+		panic(fmt.Sprintf("failed to write to database: %v", err))
 	}
-
-	os.WriteFile(configPath, data, 0600)
 }
 
 func copyFile(src, dst string) error {
-	// Open the source file
 	sourceFile, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer sourceFile.Close()
 
-	// Create the destination file
 	destinationFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 	defer destinationFile.Close()
 
-	// Copy the content from source to destination
-	_, err = io.Copy(destinationFile, sourceFile)
-	if err != nil {
+	if _, err = io.Copy(destinationFile, sourceFile); err != nil {
 		return err
 	}
 
-	// Ensure all data is flushed to the destination file
-	err = destinationFile.Sync()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return destinationFile.Sync()
 }
