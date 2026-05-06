@@ -79,7 +79,7 @@ func (w Workspace) populate(wsPath string) error {
 		rPath := path.Join(wsPath, p)
 		if r, ok := w.Repos[p]; ok {
 			m := fmt.Sprintf("Cloning %s", color.Cyan(p))
-			git.CloneWithProgress(r, rPath, m)
+			git.Default().CloneWithProgress(r, rPath, m)
 		}
 		if postInstallScripts, ok := w.RepoPostInstall[p]; ok {
 			if len(postInstallScripts) > 0 {
