@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/ubaniak/qail/internal/clip"
 	"github.com/ubaniak/qail/internal/color"
@@ -74,11 +75,22 @@ ls -l
 		return fmt.Errorf("failed to write to script file: %v", err)
 	}
 
-	err = os.Chmod(scriptName, 0755)
+	err = os.Chmod(scriptPath, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to make script executable: %v", err)
 	}
 
+	return nil
+}
+
+func validateScriptPath(scriptsDir, scriptPath string) error {
+	abs, err := filepath.Abs(scriptPath)
+	if err != nil {
+		return fmt.Errorf("invalid script path: %v", err)
+	}
+	if !strings.HasPrefix(abs, scriptsDir+string(filepath.Separator)) {
+		return fmt.Errorf("script path escapes scripts directory: %s", abs)
+	}
 	return nil
 }
 
@@ -88,6 +100,9 @@ func RemoveScript(scriptName string) error {
 		return err
 	}
 	scriptPath := filepath.Join(scriptsDir, scriptName)
+	if err := validateScriptPath(scriptsDir, scriptPath); err != nil {
+		return err
+	}
 	return os.Remove(scriptPath)
 }
 
@@ -97,6 +112,9 @@ func RunBashScript(scriptName, dir string) error {
 		return err
 	}
 	scriptPath := filepath.Join(scriptsDir, scriptName)
+	if err := validateScriptPath(scriptsDir, scriptPath); err != nil {
+		return err
+	}
 	cmd := exec.Command("/bin/bash", scriptPath)
 	cmd.Dir = dir
 
