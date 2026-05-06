@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"gorm.io/driver/sqlite"
@@ -15,6 +16,8 @@ var (
 	rootDir string
 	dbPath  string
 	db      *gorm.DB
+	dbOnce  sync.Once
+	dbErr   error
 )
 
 // internal GORM models
@@ -57,32 +60,42 @@ type scriptRow struct {
 
 func (scriptRow) TableName() string { return "post_install_scripts" }
 
-func init() {
-	h, err := os.UserHomeDir()
-	if err != nil {
-		panic(err)
-	}
+func initDB() error {
+	dbOnce.Do(func() {
+		h, err := os.UserHomeDir()
+		if err != nil {
+			dbErr = err
+			return
+		}
 
-	rootDir = filepath.Join(h, ".qail")
-	if _, err := os.Stat(rootDir); os.IsNotExist(err) {
-		os.Mkdir(rootDir, 0755)
-	}
+		rootDir = filepath.Join(h, ".qail")
+		if _, err := os.Stat(rootDir); os.IsNotExist(err) {
+			if err := os.Mkdir(rootDir, 0755); err != nil {
+				dbErr = err
+				return
+			}
+		}
 
-	dbPath = filepath.Join(rootDir, "qail.db")
-	db, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+		dbPath = filepath.Join(rootDir, "qail.db")
+		db, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Silent),
+		})
+		if err != nil {
+			dbErr = err
+			return
+		}
+
+		if err = db.AutoMigrate(
+			&settingRow{},
+			&workspaceRow{},
+			&workspaceRepoRow{},
+			&repoRow{},
+			&scriptRow{},
+		); err != nil {
+			dbErr = err
+		}
 	})
-	if err != nil {
-		panic(err)
-	}
-
-	db.AutoMigrate(
-		&settingRow{},
-		&workspaceRow{},
-		&workspaceRepoRow{},
-		&repoRow{},
-		&scriptRow{},
-	)
+	return dbErr
 }
 
 // Public types
@@ -138,6 +151,9 @@ func WithConfig(fn func(cfg *Config) error) error {
 }
 
 func ReadFromFile() (Config, error) {
+	if err := initDB(); err != nil {
+		return Config{}, err
+	}
 	var cfg Config
 	cfg.PostInstallScripts.Repo = make(map[string][]string)
 	cfg.PostInstallScripts.Workspace = make(map[string][]string)
@@ -209,60 +225,65 @@ func ReadFromFile() (Config, error) {
 }
 
 func WriteToFile(cfg Config) error {
-	// settings (upsert)
-	if err := db.Save(&settingRow{Key: "root", Value: cfg.Root}).Error; err != nil {
+	if err := initDB(); err != nil {
 		return err
 	}
-	if err := db.Save(&settingRow{Key: "editor", Value: cfg.Editor}).Error; err != nil {
-		return err
-	}
-
-	// repos — replace all
-	if err := db.Exec("DELETE FROM repos").Error; err != nil {
-		return err
-	}
-	for name, url := range cfg.Repos {
-		if err := db.Create(&repoRow{Name: name, URL: url}).Error; err != nil {
+	return db.Transaction(func(tx *gorm.DB) error {
+		// settings (upsert)
+		if err := tx.Save(&settingRow{Key: "root", Value: cfg.Root}).Error; err != nil {
 			return err
 		}
-	}
-
-	// workspaces — replace all
-	if err := db.Exec("DELETE FROM workspace_repos").Error; err != nil {
-		return err
-	}
-	if err := db.Exec("DELETE FROM workspaces").Error; err != nil {
-		return err
-	}
-	for name, profile := range cfg.Workspaces {
-		if err := db.Create(&workspaceRow{Name: name, LastUsed: profile.LastUsed}).Error; err != nil {
+		if err := tx.Save(&settingRow{Key: "editor", Value: cfg.Editor}).Error; err != nil {
 			return err
 		}
-		for _, repoName := range profile.Repos {
-			if err := db.Create(&workspaceRepoRow{WorkspaceName: name, RepoName: repoName}).Error; err != nil {
-				return err
-			}
-		}
-	}
 
-	// post install scripts — replace all
-	if err := db.Exec("DELETE FROM post_install_scripts").Error; err != nil {
-		return err
-	}
-	for target, scripts := range cfg.PostInstallScripts.Repo {
-		for i, script := range scripts {
-			if err := db.Create(&scriptRow{Type: "repo", Target: target, Script: script, Idx: i}).Error; err != nil {
+		// repos — replace all
+		if err := tx.Exec("DELETE FROM repos").Error; err != nil {
+			return err
+		}
+		for name, url := range cfg.Repos {
+			if err := tx.Create(&repoRow{Name: name, URL: url}).Error; err != nil {
 				return err
 			}
 		}
-	}
-	for target, scripts := range cfg.PostInstallScripts.Workspace {
-		for i, script := range scripts {
-			if err := db.Create(&scriptRow{Type: "workspace", Target: target, Script: script, Idx: i}).Error; err != nil {
-				return err
-			}
-		}
-	}
 
-	return nil
+		// workspaces — replace all
+		if err := tx.Exec("DELETE FROM workspace_repos").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM workspaces").Error; err != nil {
+			return err
+		}
+		for name, profile := range cfg.Workspaces {
+			if err := tx.Create(&workspaceRow{Name: name, LastUsed: profile.LastUsed}).Error; err != nil {
+				return err
+			}
+			for _, repoName := range profile.Repos {
+				if err := tx.Create(&workspaceRepoRow{WorkspaceName: name, RepoName: repoName}).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		// post install scripts — replace all
+		if err := tx.Exec("DELETE FROM post_install_scripts").Error; err != nil {
+			return err
+		}
+		for target, scripts := range cfg.PostInstallScripts.Repo {
+			for i, script := range scripts {
+				if err := tx.Create(&scriptRow{Type: "repo", Target: target, Script: script, Idx: i}).Error; err != nil {
+					return err
+				}
+			}
+		}
+		for target, scripts := range cfg.PostInstallScripts.Workspace {
+			for i, script := range scripts {
+				if err := tx.Create(&scriptRow{Type: "workspace", Target: target, Script: script, Idx: i}).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
+	})
 }
