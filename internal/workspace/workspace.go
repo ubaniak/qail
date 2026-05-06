@@ -10,6 +10,7 @@ import (
 	"github.com/ubaniak/qail/internal/clip"
 	"github.com/ubaniak/qail/internal/color"
 	"github.com/ubaniak/qail/internal/config"
+	"github.com/ubaniak/qail/internal/forms"
 	"github.com/ubaniak/qail/internal/git"
 	"github.com/ubaniak/qail/internal/scripts"
 	"github.com/ubaniak/qail/internal/tmux"
@@ -47,22 +48,38 @@ func (w *Workspace) WithWSPostInstallScripts(p map[string][]string) *Workspace {
 
 func (w Workspace) Create() error {
 	if _, err := os.Stat(w.Root); os.IsNotExist(err) {
-		os.Mkdir(w.Root, 0755)
+		if err := os.Mkdir(w.Root, 0755); err != nil {
+			return fmt.Errorf("failed to create root directory: %v", err)
+		}
 	}
 
 	wsPath := path.Join(w.Root, w.Name)
 
+	wsCreated := false
 	if _, err := os.Stat(wsPath); os.IsNotExist(err) {
-		os.Mkdir(wsPath, 0755)
+		if err := os.Mkdir(wsPath, 0755); err != nil {
+			return fmt.Errorf("failed to create workspace directory: %v", err)
+		}
+		wsCreated = true
 	}
 
+	if err := w.populate(wsPath); err != nil {
+		if wsCreated {
+			os.RemoveAll(wsPath)
+		}
+		return err
+	}
+	return nil
+}
+
+func (w Workspace) populate(wsPath string) error {
 	fmt.Printf("Creating workspace %s ...\n", color.Cyan(wsPath))
 	for _, p := range w.Packages {
 		fmt.Printf("* Adding package %s ...\n", color.Cyan(p))
 		rPath := path.Join(wsPath, p)
 		if r, ok := w.Repos[p]; ok {
 			m := fmt.Sprintf("Cloning %s", color.Cyan(p))
-			git.ConeWithProgress(r, rPath, m)
+			git.CloneWithProgress(r, rPath, m)
 		}
 		if postInstallScripts, ok := w.RepoPostInstall[p]; ok {
 			if len(postInstallScripts) > 0 {
@@ -150,18 +167,39 @@ func Clean(root string, ws config.Workspace) error {
 
 	fmt.Println("Reading ...", color.Cyan(root))
 
+	var toDelete []string
 	for _, file := range files {
 		if !file.IsDir() {
 			continue
 		}
 		fmt.Println("Folder name", color.Cyan(file.Name()))
-		_, ok := ws[file.Name()]
-		if !ok {
-			fmt.Printf("%s Deleting: %s\n", color.Yellow(">>>"), color.Cyan(file.Name()))
-			err := os.RemoveAll(path.Join(root, file.Name()))
-			if err != nil {
-				return err
-			}
+		if _, ok := ws[file.Name()]; !ok {
+			toDelete = append(toDelete, file.Name())
+		}
+	}
+
+	if len(toDelete) == 0 {
+		return nil
+	}
+
+	fmt.Printf("%s The following directories are not tracked and will be deleted:\n", color.Yellow(">>>"))
+	for _, name := range toDelete {
+		fmt.Printf("   * %s\n", color.Cyan(name))
+	}
+
+	confirmed, err := forms.Confirm("Delete these directories?")
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		fmt.Println("Aborted.")
+		return nil
+	}
+
+	for _, name := range toDelete {
+		fmt.Printf("%s Deleting: %s\n", color.Yellow(">>>"), color.Cyan(name))
+		if err := os.RemoveAll(path.Join(root, name)); err != nil {
+			return err
 		}
 	}
 

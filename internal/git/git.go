@@ -20,7 +20,7 @@ func Clone(repo, path string) (string, error) {
 	return runCmd(args)
 }
 
-func ConeWithProgress(repo, path, message string) {
+func CloneWithProgress(repo, path, message string) {
 	clone := func() {
 		Clone(repo, path)
 	}
