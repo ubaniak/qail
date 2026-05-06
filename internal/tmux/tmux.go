@@ -12,8 +12,12 @@ import (
 )
 
 func Attach(sessionName string) {
-	cmd := fmt.Sprintf("tmux a -t %s", sessionName)
+	cmd := fmt.Sprintf("tmux a -t %s", shellQuote(sessionName))
 	clip.Cmd(cmd)
+}
+
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
 func SessionName(path string) string {
@@ -66,16 +70,15 @@ func Launch(folderPath string) error {
 			subfolderPath := filepath.Join(folderPath, subFolder.Name())
 
 			if isEven(folderNumber) {
+				cmd = exec.Command("tmux", "split-window", "-t", fmt.Sprintf("%s:%d", sessionName, windowIndex), "-c", subfolderPath, "-h")
+				if err := cmd.Run(); err != nil {
+					return fmt.Errorf("failed to split window: %v, cmd: %s", err, cmd)
+				}
+			} else {
 				windowIndex++
 				cmd = exec.Command("tmux", "new-window", "-t", sessionName, "-c", subfolderPath, "-n", "SubFolders"+fmt.Sprintf("%d", windowIndex))
 				if err := cmd.Run(); err != nil {
 					return fmt.Errorf("failed to create new window %s, %v", cmd, err)
-				}
-			} else {
-				cmd = exec.Command("tmux", "split-window", "-t", fmt.Sprintf("%s:%d", sessionName, windowIndex), "-c", subfolderPath, "-h")
-
-				if err := cmd.Run(); err != nil {
-					return fmt.Errorf("failed to split window: %v, cmd: %s", err, cmd)
 				}
 			}
 			folderNumber++

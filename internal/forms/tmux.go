@@ -1,8 +1,6 @@
 package forms
 
 import (
-	"fmt"
-
 	"github.com/charmbracelet/huh"
 )
 
@@ -24,7 +22,6 @@ func RemoveTmuxSession(sessions []string) (string, bool, error) {
 
 	var opts []huh.Option[string]
 	for _, s := range sessions {
-		fmt.Println(s)
 		opts = append(opts, huh.NewOption(s, s))
 	}
 	s.Options(opts...)
