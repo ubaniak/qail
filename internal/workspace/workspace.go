@@ -85,9 +85,10 @@ func (w Workspace) populate(wsPath string) error {
 			if len(postInstallScripts) > 0 {
 				fmt.Printf("Running post install scripts for %s: %s \n", color.Green("repos"), color.Cyan(p))
 			}
+			sc := scripts.Default()
 			for _, s := range postInstallScripts {
 				fmt.Printf("   * Running post install script: %s\n", color.Cyan(s))
-				scripts.RunBashScript(s, rPath)
+				sc.RunBashScript(s, rPath)
 			}
 		}
 		fmt.Println()
@@ -97,9 +98,10 @@ func (w Workspace) populate(wsPath string) error {
 		if len(postInstallScripts) > 0 {
 			fmt.Printf("Running post install scripts for %s: %s \n", color.Green("workspace"), color.Cyan(w.Name))
 		}
+		sc := scripts.Default()
 		for _, s := range postInstallScripts {
 			fmt.Printf("   * Running post install script: %s\n", color.Cyan(s))
-			scripts.RunBashScript(s, wsPath)
+			sc.RunBashScript(s, wsPath)
 		}
 	}
 

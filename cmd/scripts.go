@@ -20,7 +20,7 @@ var (
 		Use: "cd",
 		Run: func(cmd *cobra.Command, args []string) {
 			fn := func(cfg *config.Config) error {
-				return scripts.Cd()
+				return scripts.Default().Cd()
 			}
 
 			HandleConfig(fn)
@@ -32,7 +32,7 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			fn := func(cfg *config.Config) error {
 				s, err := forms.NewScript()
-				scripts.CreateBashScript(s)
+				scripts.Default().CreateBashScript(s)
 
 				return err
 			}
@@ -45,7 +45,7 @@ var (
 		Aliases: []string{"ls"},
 		Run: func(cmd *cobra.Command, args []string) {
 			fn := func(cfg *config.Config) error {
-				scriptList, err := scripts.ListScripts()
+				scriptList, err := scripts.Default().ListScripts()
 				if err != nil {
 					return err
 				}
@@ -62,7 +62,8 @@ var (
 		Aliases: []string{"o"},
 		Run: func(cmd *cobra.Command, args []string) {
 			fn := func(cfg *config.Config) error {
-				allScripts, err := scripts.ListScripts()
+				s := scripts.Default()
+				allScripts, err := s.ListScripts()
 				if err != nil {
 					return err
 				}
@@ -71,7 +72,7 @@ var (
 					return err
 				}
 
-				return scripts.Open(cfg.Editor, script)
+				return s.Open(cfg.Editor, script)
 			}
 
 			HandleConfig(fn)
@@ -82,7 +83,8 @@ var (
 		Aliases: []string{"rm"},
 		Run: func(cmd *cobra.Command, args []string) {
 			fn := func(cfg *config.Config) error {
-				allScripts, err := scripts.ListScripts()
+				s := scripts.Default()
+				allScripts, err := s.ListScripts()
 				if err != nil {
 					return err
 				}
@@ -102,7 +104,7 @@ var (
 				}
 				fmt.Printf("Removing %s\n", script)
 
-				return scripts.RemoveScript(script)
+				return s.RemoveScript(script)
 			}
 
 			HandleConfig(fn)

@@ -1,25 +1,41 @@
 package scripts
 
 import (
-	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/ubaniak/qail/internal/clip"
 	"github.com/ubaniak/qail/internal/color"
+	"github.com/ubaniak/qail/internal/runner"
 )
+
+// Runner is the narrow subprocess interface the scripts module needs.
+type Runner interface {
+	Run(ctx context.Context, cmd runner.Command) (runner.Result, error)
+}
+
+// Scripts manages bash scripts stored under ~/.qail/scripts.
+type Scripts struct {
+	r Runner
+}
+
+// New returns a Scripts wired to r.
+func New(r Runner) *Scripts { return &Scripts{r: r} }
+
+// Default returns a Scripts wired to the OS Runner.
+func Default() *Scripts { return New(runner.NewOS()) }
 
 func SortScripts(scripts []string) []string {
 	sort.Strings(scripts)
 	return scripts
 }
 
-func GetScriptDir() (string, error) {
+func (s *Scripts) GetScriptDir() (string, error) {
 	var rootDir string
 	var scriptsDir string
 	h, err := os.UserHomeDir()
@@ -42,14 +58,14 @@ func GetScriptDir() (string, error) {
 }
 
 // CreateBashScript generates a bash script with a specified name
-func CreateBashScript(scriptName string) error {
+func (s *Scripts) CreateBashScript(scriptName string) error {
 	scriptContent := `#!/bin/bash
 
-# Add your custom logic here 
-ls -l 
+# Add your custom logic here
+ls -l
 `
 
-	scriptsDir, err := GetScriptDir()
+	scriptsDir, err := s.GetScriptDir()
 	if err != nil {
 		return err
 	}
@@ -94,8 +110,8 @@ func validateScriptPath(scriptsDir, scriptPath string) error {
 	return nil
 }
 
-func RemoveScript(scriptName string) error {
-	scriptsDir, err := GetScriptDir()
+func (s *Scripts) RemoveScript(scriptName string) error {
+	scriptsDir, err := s.GetScriptDir()
 	if err != nil {
 		return err
 	}
@@ -106,8 +122,8 @@ func RemoveScript(scriptName string) error {
 	return os.Remove(scriptPath)
 }
 
-func RunBashScript(scriptName, dir string) error {
-	scriptsDir, err := GetScriptDir()
+func (s *Scripts) RunBashScript(scriptName, dir string) error {
+	scriptsDir, err := s.GetScriptDir()
 	if err != nil {
 		return err
 	}
@@ -115,28 +131,26 @@ func RunBashScript(scriptName, dir string) error {
 	if err := validateScriptPath(scriptsDir, scriptPath); err != nil {
 		return err
 	}
-	cmd := exec.Command("/bin/bash", scriptPath)
-	cmd.Dir = dir
 
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err = cmd.Run()
-	if stdout.String() != "" {
+	res, err := s.r.Run(context.Background(), runner.Command{
+		Name: "/bin/bash",
+		Args: []string{scriptPath},
+		Dir:  dir,
+	})
+	if len(res.Stdout) > 0 {
 		fmt.Printf("%s %s %s\n\n", color.Yellow(">>>"), color.Green("Stdout"), color.Yellow("<<<"))
-		fmt.Println(stdout.String())
+		fmt.Println(string(res.Stdout))
 	}
-	if stderr.String() != "" {
+	if len(res.Stderr) > 0 {
 		fmt.Printf("%s %s %s\n\n", color.Yellow(">>>"), color.Red("Stderr"), color.Yellow("<<<"))
-		fmt.Println(stderr.String())
+		fmt.Println(string(res.Stderr))
 	}
 
 	return err
 }
 
-func ListScripts() ([]string, error) {
-	scriptsDir, err := GetScriptDir()
+func (s *Scripts) ListScripts() ([]string, error) {
+	scriptsDir, err := s.GetScriptDir()
 	if err != nil {
 		return nil, err
 	}
@@ -153,26 +167,27 @@ func ListScripts() ([]string, error) {
 	return SortScripts(scriptNames), nil
 }
 
-func Open(editor, scriptName string) error {
+func (s *Scripts) Open(editor, scriptName string) error {
 	if editor == "" {
 		return errors.New("no editor selected ... ")
 	}
 
-	scriptDir, err := GetScriptDir()
+	scriptDir, err := s.GetScriptDir()
 	if err != nil {
 		return err
 	}
 
 	scriptPath := filepath.Join(scriptDir, scriptName)
 
-	cmd := exec.Command(editor, scriptPath)
-
-	_, err = cmd.Output()
+	_, err = s.r.Run(context.Background(), runner.Command{
+		Name: editor,
+		Args: []string{scriptPath},
+	})
 	return err
 }
 
-func Cd() error {
-	scriptDir, err := GetScriptDir()
+func (s *Scripts) Cd() error {
+	scriptDir, err := s.GetScriptDir()
 	if err != nil {
 		return err
 	}

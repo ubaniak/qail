@@ -93,7 +93,7 @@ var (
 
 				selected = cfg.PostInstallScripts.Repo[r]
 
-				scripts, err := scripts.ListScripts()
+				scripts, err := scripts.Default().ListScripts()
 				if err != nil {
 					return nil
 				}

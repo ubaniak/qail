@@ -318,7 +318,7 @@ var (
 
 				selected = cfg.PostInstallScripts.Workspace[ws.Name]
 
-				scripts, err := scripts.ListScripts()
+				scripts, err := scripts.Default().ListScripts()
 				if err != nil {
 					return nil
 				}
