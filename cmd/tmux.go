@@ -19,7 +19,7 @@ var (
 		Aliases: []string{"ls"},
 		Run: func(cmd *cobra.Command, args []string) {
 			fn := func(cfg *config.Config) error {
-				sessions, err := tmux.ListSessions()
+				sessions, err := tmux.Default().ListSessions()
 				if err != nil {
 					return err
 				}
@@ -35,7 +35,8 @@ var (
 		Aliases: []string{"rm"},
 		Run: func(cmd *cobra.Command, args []string) {
 			fn := func(cfg *config.Config) error {
-				sessions, err := tmux.ListSessions()
+				t := tmux.Default()
+				sessions, err := t.ListSessions()
 				if err != nil {
 					return err
 				}
@@ -47,7 +48,7 @@ var (
 					return err
 				}
 
-				return tmux.RemoveSession(s)
+				return t.RemoveSession(s)
 			}
 
 			HandleConfig(fn)

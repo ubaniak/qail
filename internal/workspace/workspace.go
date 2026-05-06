@@ -146,18 +146,19 @@ func Cd(ws string) {
 }
 
 func Tmux(ws string) error {
-	err, _ := tmux.IsInstalled()
+	t := tmux.Default()
+	err, _ := t.IsInstalled()
 	if err != nil {
 		return err
 	}
-	sessionName := tmux.SessionName(ws)
-	if !tmux.SessionExists(sessionName) {
-		err := tmux.Launch(ws)
+	sessionName := t.SessionName(ws)
+	if !t.SessionExists(sessionName) {
+		err := t.Launch(ws)
 		if err != nil {
 			return err
 		}
 	}
-	tmux.Attach(sessionName)
+	t.Attach(sessionName)
 	return nil
 }
 
