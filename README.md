@@ -1,138 +1,149 @@
-- [Introduction](#introduction)
-  - [Why?](#why)
-  - [Getting started](#getting-started)
-  - [Usage](#usage)
-    - [Setup](#setup)
-    - [Repository management](#repository-management)
-    - [Workspace management](#workspace-management)
-    - [Open a workspace](#open-a-workspace)
-    - [Tmux](#tmux)
-    - [Scripts](#scripts)
-      - [Create a script](#create-a-script)
-      - [Adding a Repo post install script](#adding-a-repo-post-install-script)
+# qail
 
-# Introduction
+`qail` (pronounced *kyle*) is a CLI workspace manager for multi-repo projects.
 
-`qail` pronounded `kyle`
+Group git repos into a workspace, clone them together, and open the whole set in your editor or a tmux session. Run post-install scripts per repo or per workspace.
 
-Manage your workspace in style with qail
+## Table of Contents
+
+- [Why?](#why)
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Example: spinning up a microservice workspace](#example-spinning-up-a-microservice-workspace)
+- [Commands](#commands)
+  - [Config](#config)
+  - [Repos](#repos)
+  - [Workspaces](#workspaces)
+  - [Scripts](#scripts)
+  - [Tmux](#tmux)
+- [Data location](#data-location)
 
 ## Why?
 
-When dealing with micro services or services which require multiple repos, it is handy to create a workspace that encapsulates all related project repos.
+When working on microservices or any feature that touches multiple repos, you usually want them cloned side-by-side, opened together, and bootstrapped the same way each time. `qail` encapsulates that as a *workspace*.
 
-## Getting started
+## Install
 
-- Build the project with
+Build and put the binary on your `PATH`:
 
 ```sh
 make build
-mkdir ~/.qail/bin
+mkdir -p ~/.qail/bin
 cp bin/qail ~/.qail/bin
 ```
 
-- Add the following to your `.bashrc` or `.zshrc`
+Add to `.bashrc` / `.zshrc`:
 
 ```sh
-export QAILPATH="~/.qail/bin"
-export PATH=$QAILPATH:$PATH
+export QAILPATH="$HOME/.qail/bin"
+export PATH="$QAILPATH:$PATH"
 ```
 
-## Usage
-
-### Setup
-
-- Set your workspace location with
+## Quick start
 
 ```sh
-qail init
-```
-
-- Add a text editor with
-
-```sh
-# This will set vscode on macos
+qail init                              # set workspace root dir
 qail config editor "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
+qail repo add                          # register a git repo
+qail workspace add                     # create a workspace from registered repos
+qail open                              # open workspace in editor
 ```
 
-- View your config settings with
+## Example: spinning up a microservice workspace
+
+Say you work on a payments product split across `payments-api`, `payments-worker`, and `payments-web`. You want one command to clone all three and run `npm install` in the web repo.
 
 ```sh
-qail config ls
-```
+# 1. one-time setup
+qail init
+qail config editor "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
 
-### Repository management
+# 2. register each repo
+qail r a   # → git@github.com:acme/payments-api.git
+qail r a   # → git@github.com:acme/payments-worker.git
+qail r a   # → git@github.com:acme/payments-web.git
 
-Before you create a workspace add a git repo to your qail config with
+# 3. create a post-install script for the web repo
+qail scripts a    # name it: web-install
+qail scripts o    # edit; replace body with: npm install
 
-```sh
-qail repo add
-# short
+# 4. attach script to the web repo
+qail repo p       # pick payments-web → web-install
 
-qail r a
-```
-
-follow the steps to include your git repo
-
-you can manage your repos with the `repo` command.
-
-```sh
-qail repo --help
-```
-
-### Workspace management
-
-Create a workspace with
-
-```sh
+# 5. create the workspace
 qail workspace add
+# pick name: payments
+# select all 3 repos
 
-# short
-
-qail ws a
+# 6. open it
+qail open         # pick payments → editor launches with all 3 repos
+# or in tmux:
+qail mux o        # pick payments → tmux session w/ a window per repo
 ```
 
-you can manage your repos with the `workspace` command.
+Later, jump back in:
 
 ```sh
-qail workspace --help
+qail ws ls        # list workspaces
+qail open         # reopen
+qail ws cd        # print path; pair with shell alias to cd into it
 ```
 
-### Open a workspace
-
-Open a workspace with
+Tear down a stale clone but keep the workspace definition:
 
 ```sh
-qail open
+qail ws clean
 ```
 
-### Tmux
+## Commands
 
-- Install tmux
+Most commands have short aliases: `workspace` → `ws`, `repo` → `r`, `add` → `a`, `list` → `ls`, `remove` → `rm`, `open` → `o`, `create` → `c`.
 
-Open a workspace with
+### Config
 
 ```sh
-qail mux o
+qail init                  # set workspace root
+qail config ls             # show current config
+qail config editor <path>  # set editor binary
+qail config root <path>    # set workspace root
+```
+
+### Repos
+
+```sh
+qail repo add              # register a git repo (alias: r a)
+qail repo list             # list repos
+qail repo remove           # unregister
+qail repo p                # attach a post-install script
+```
+
+### Workspaces
+
+```sh
+qail workspace add         # create workspace (alias: ws a)
+qail workspace list
+qail workspace edit
+qail workspace remove
+qail workspace clone       # re-clone repos
+qail workspace clean       # remove orphaned dirs
+qail workspace explore     # browse workspace contents
+qail workspace cd          # print path
+qail open                  # open in editor
+qail mux o                 # open in tmux
 ```
 
 ### Scripts
 
-Run a bash script before or after a workspace is created or a repo is installed.
-
-#### Create a script
+Bash scripts stored in `~/.qail/scripts/`, runnable as repo or workspace post-install hooks.
 
 ```sh
-qail scripts a
+qail scripts add           # create (alias: s a)
+qail scripts open          # edit
+qail scripts list
+qail scripts remove
 ```
 
-Edit your script
-
-```sh
-qail scripts o
-```
-
-The default script will be
+Default template:
 
 ```sh
 #!/bin/bash
@@ -141,8 +152,20 @@ The default script will be
 ls -l
 ```
 
-#### Adding a Repo post install script
+### Tmux
 
 ```sh
-qail repo p
+qail mux o                 # open workspace as tmux session
+qail mux ls                # list sessions
+qail mux rm                # kill session
 ```
+
+Requires `tmux` installed.
+
+## Data location
+
+Everything lives under `~/.qail/`:
+
+- `qail.db` — SQLite database (config, repos, workspaces)
+- `scripts/` — user scripts
+- `bin/` — the binary (if installed via the steps above)
