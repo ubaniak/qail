@@ -1,10 +1,10 @@
 package workspace
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path"
 
 	"github.com/ubaniak/qail/internal/clip"
@@ -12,6 +12,7 @@ import (
 	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/forms"
 	"github.com/ubaniak/qail/internal/git"
+	"github.com/ubaniak/qail/internal/runner"
 	"github.com/ubaniak/qail/internal/scripts"
 	"github.com/ubaniak/qail/internal/tmux"
 )
@@ -123,22 +124,33 @@ func (w Workspace) RemoveRepo(repo string) error {
 	return os.RemoveAll(wsPath)
 }
 
+// defaultRunner returns the production Runner used by free functions in this
+// package. Methods on Workspace will gain explicit injection in a later pass.
+func defaultRunner() *runner.OS { return runner.NewOS() }
+
+// Open launches the configured editor against the workspace path, inheriting
+// stdio so editors like vim/nvim can take over the terminal.
 func Open(editor, workspace string) {
 	if editor == "" {
 		log.Fatalln("No editor selected ... ")
 	}
 
-	cmd := exec.Command(editor, workspace)
-
-	cmd.Output()
+	defaultRunner().Run(context.Background(), runner.Command{
+		Name:   editor,
+		Args:   []string{workspace},
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	})
 }
 
+// Explore opens the workspace in the macOS Finder via `open`.
 func Explore(ws string) (string, error) {
-	cmd := exec.Command("open", ws)
-
-	out, err := cmd.Output()
-
-	return string(out), err
+	res, err := defaultRunner().Run(context.Background(), runner.Command{
+		Name: "open",
+		Args: []string{ws},
+	})
+	return string(res.Stdout), err
 }
 
 func Cd(ws string) {
