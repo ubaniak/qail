@@ -16,7 +16,6 @@ var (
 		Use:     "repo",
 		Short:   "manage your workspace repos",
 		Aliases: []string{"r"},
-		Run:     runRepoCmd(),
 	}
 	rmRepoCmd = &cobra.Command{
 		Use:     "remove",
@@ -113,25 +112,6 @@ var (
 		},
 	}
 )
-
-func runRepoCmd() cobraReturnType {
-	return func(cmd *cobra.Command, args []string) {
-
-		for _, arg := range args {
-			switch arg {
-			case "Add":
-				addRepoCmd.Execute()
-			case "list":
-				listRepoCmd.Execute()
-			case "remove":
-				rmRepoCmd.Execute()
-			case "post-install-script":
-				postInstallScriptRepoCmd.Execute()
-			}
-		}
-
-	}
-}
 
 func init() {
 	repoCmd.AddCommand(addRepoCmd, listRepoCmd, rmRepoCmd, postInstallScriptRepoCmd)

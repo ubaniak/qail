@@ -67,26 +67,8 @@ var (
 	configCmd = &cobra.Command{
 		Use:   "config",
 		Short: "Manage the qail config",
-		Run:   runConfigCmd(),
 	}
 )
-
-func runConfigCmd() cobraReturnType {
-	return func(cmd *cobra.Command, args []string) {
-		for _, arg := range args {
-			switch arg {
-			case "convert":
-				configConvertCmd.Execute()
-			case "root":
-				configRootCmd.Execute()
-			case "editor":
-				configEditorCmd.Execute()
-			case "list":
-				configLsCmd.Execute()
-			}
-		}
-	}
-}
 
 func init() {
 	configCmd.AddCommand(configRootCmd, configEditorCmd, configLsCmd, configConvertCmd)

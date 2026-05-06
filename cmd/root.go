@@ -12,7 +12,6 @@ var (
 	}
 )
 
-type cobraReturnType = func(*cobra.Command, []string)
 
 func Execute() error {
 	return rootCmd.Execute()

@@ -13,7 +13,6 @@ var (
 		Use:     "mux",
 		Short:   "manage tmux",
 		Aliases: []string{"m"},
-		Run:     runTmuxCmd(),
 	}
 	lsTmuxCmd = &cobra.Command{
 		Use:     "list",
@@ -55,21 +54,6 @@ var (
 		},
 	}
 )
-
-func runTmuxCmd() cobraReturnType {
-	return func(cmd *cobra.Command, args []string) {
-
-		for _, arg := range args {
-			switch arg {
-			case "list":
-				lsTmuxCmd.Execute()
-			case "remove":
-				rmTmuxCmd.Execute()
-			}
-		}
-
-	}
-}
 
 func init() {
 	tmuxCmd.AddCommand(lsTmuxCmd, rmTmuxCmd)

@@ -15,7 +15,6 @@ var (
 		Use:     "scripts",
 		Short:   "manage pre|post install scripts",
 		Aliases: []string{"s"},
-		Run:     runScriptsCmd(),
 	}
 	cdScriptCmd = &cobra.Command{
 		Use: "cd",
@@ -46,11 +45,11 @@ var (
 		Aliases: []string{"ls"},
 		Run: func(cmd *cobra.Command, args []string) {
 			fn := func(cfg *config.Config) error {
-				scripts, err := scripts.ListScripts()
+				scriptList, err := scripts.ListScripts()
 				if err != nil {
 					return err
 				}
-				forms.DisplayScripts(scripts)
+				forms.DisplayScripts(scriptList)
 
 				return nil
 			}
@@ -110,25 +109,6 @@ var (
 		},
 	}
 )
-
-func runScriptsCmd() cobraReturnType {
-	return func(cmd *cobra.Command, args []string) {
-		for _, arg := range args {
-			switch arg {
-			case "add":
-				addScriptCmd.Execute()
-			case "list":
-				lsScriptCmd.Execute()
-			case "remove":
-				removeScriptCmd.Execute()
-			case "open":
-				openScriptCmd.Execute()
-			case "cd":
-				cdScriptCmd.Execute()
-			}
-		}
-	}
-}
 
 func init() {
 	scriptsCmd.AddCommand(addScriptCmd, lsScriptCmd, openScriptCmd, removeScriptCmd, cdScriptCmd)

@@ -20,7 +20,6 @@ var (
 		Use:     "workspace",
 		Aliases: []string{"ws"},
 		Short:   "Manage your workspaces",
-		Run:     runWsCmd(),
 	}
 	runWsScript = &cobra.Command{
 		Use:     "run-script",
@@ -338,38 +337,6 @@ var (
 		},
 	}
 )
-
-func runWsCmd() cobraReturnType {
-	return func(cmd *cobra.Command, args []string) {
-		for _, arg := range args {
-			switch arg {
-			case "tmux":
-				tmuxWsCmd.Execute()
-			case "create":
-				createWsCmd.Execute()
-			case "add":
-				addWsCmd.Execute()
-			case "clone":
-				cloneWsCmd.Execute()
-			case "edit":
-				editWsCmd.Execute()
-			case "remove":
-				removeWsCmd.Execute()
-			case "cd":
-				cdWsCmd.Execute()
-			case "open":
-				openWsCmd.Execute()
-			case "clean":
-				cleanWSCmd.Execute()
-			case "explore":
-				exploreCmd.Execute()
-			case "post-install-scripts":
-				postInstallScriptWsCmd.Execute()
-			}
-
-		}
-	}
-}
 
 func init() {
 	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd, tmuxWsCmd, postInstallScriptWsCmd, exploreCmd)
