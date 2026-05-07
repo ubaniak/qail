@@ -11,6 +11,7 @@ import (
 
 	"github.com/ubaniak/qail/internal/clip"
 	"github.com/ubaniak/qail/internal/color"
+	"github.com/ubaniak/qail/internal/qailhome"
 	"github.com/ubaniak/qail/internal/runner"
 )
 
@@ -19,42 +20,44 @@ type Runner interface {
 	Run(ctx context.Context, cmd runner.Command) (runner.Result, error)
 }
 
-// Scripts manages bash scripts stored under ~/.qail/scripts.
+// Scripts manages bash scripts stored in scriptsDir.
 type Scripts struct {
-	r Runner
+	r          Runner
+	scriptsDir string
 }
 
-// New returns a Scripts wired to r.
-func New(r Runner) *Scripts { return &Scripts{r: r} }
+// New returns a Scripts wired to r and rooted at scriptsDir. The directory
+// must already exist; qailhome.Default() creates it during bootstrap.
+func New(r Runner, scriptsDir string) *Scripts {
+	return &Scripts{r: r, scriptsDir: scriptsDir}
+}
 
-// Default returns a Scripts wired to the OS Runner.
-func Default() *Scripts { return New(runner.NewOS()) }
+// Default returns a Scripts wired to the OS Runner and the production
+// scripts directory from qailhome.Default().
+func Default() *Scripts {
+	h, err := qailhome.Default()
+	if err != nil {
+		// qailhome creation failure is fatal for production callers; keep
+		// the previous panic-on-init behaviour by returning a Scripts
+		// pointed at a path that will fail on first use.
+		return &Scripts{r: runner.NewOS()}
+	}
+	return New(runner.NewOS(), h.ScriptsDir())
+}
 
 func SortScripts(scripts []string) []string {
 	sort.Strings(scripts)
 	return scripts
 }
 
+// GetScriptDir returns the configured scripts directory. It exists for
+// callers that want to display or change directory to the path; mutation
+// happens through the Scripts methods, never via this string.
 func (s *Scripts) GetScriptDir() (string, error) {
-	var rootDir string
-	var scriptsDir string
-	h, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+	if s.scriptsDir == "" {
+		return "", fmt.Errorf("scripts directory not configured")
 	}
-
-	rootDir = filepath.Join(h, ".qail")
-	if _, err := os.Stat(rootDir); os.IsNotExist(err) {
-		os.Mkdir(rootDir, 0755)
-	}
-
-	scriptsDir = filepath.Join(rootDir, "scripts")
-
-	if _, err := os.Stat(scriptsDir); os.IsNotExist(err) {
-		os.Mkdir(scriptsDir, 0755)
-	}
-
-	return scriptsDir, nil
+	return s.scriptsDir, nil
 }
 
 // CreateBashScript generates a bash script with a specified name

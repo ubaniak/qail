@@ -8,30 +8,24 @@ import (
 	"github.com/ubaniak/qail/internal/runner"
 )
 
-// withTempHome points os.UserHomeDir() at a tempdir for the duration of the
-// test by overriding HOME, and pre-creates ~/.qail/scripts/<file>.
-func withTempHome(t *testing.T, scriptName, scriptBody string) (home, scriptsDir string) {
+// seedScripts creates an isolated scripts directory under t.TempDir() and
+// optionally writes scriptName with scriptBody. Returns the directory.
+func seedScripts(t *testing.T, scriptName, scriptBody string) string {
 	t.Helper()
-	home = t.TempDir()
-	t.Setenv("HOME", home)
-
-	scriptsDir = filepath.Join(home, ".qail", "scripts")
-	if err := os.MkdirAll(scriptsDir, 0755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
+	dir := t.TempDir()
 	if scriptName != "" {
-		if err := os.WriteFile(filepath.Join(scriptsDir, scriptName), []byte(scriptBody), 0755); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, scriptName), []byte(scriptBody), 0755); err != nil {
 			t.Fatalf("write script: %v", err)
 		}
 	}
-	return home, scriptsDir
+	return dir
 }
 
 func TestRunBashScriptInvokesBashWithScriptPath(t *testing.T) {
-	_, scriptsDir := withTempHome(t, "hello.sh", "echo hi")
+	dir := seedScripts(t, "hello.sh", "echo hi")
 
 	rec := runner.NewRecorder().RespondOK([]byte("hi\n"))
-	s := New(rec)
+	s := New(rec, dir)
 
 	if err := s.RunBashScript("hello.sh", "/tmp/work"); err != nil {
 		t.Fatalf("unexpected err: %v", err)
@@ -44,7 +38,7 @@ func TestRunBashScriptInvokesBashWithScriptPath(t *testing.T) {
 	if got.Name != "/bin/bash" {
 		t.Fatalf("name = %q, want /bin/bash", got.Name)
 	}
-	wantPath := filepath.Join(scriptsDir, "hello.sh")
+	wantPath := filepath.Join(dir, "hello.sh")
 	if len(got.Args) != 1 || got.Args[0] != wantPath {
 		t.Fatalf("args = %v, want [%s]", got.Args, wantPath)
 	}
@@ -54,10 +48,10 @@ func TestRunBashScriptInvokesBashWithScriptPath(t *testing.T) {
 }
 
 func TestRunBashScriptRejectsPathTraversal(t *testing.T) {
-	withTempHome(t, "", "")
+	dir := seedScripts(t, "", "")
 
 	rec := runner.NewRecorder()
-	s := New(rec)
+	s := New(rec, dir)
 
 	err := s.RunBashScript("../etc/passwd", "/tmp")
 	if err == nil {

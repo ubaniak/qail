@@ -7,10 +7,10 @@ package config
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/ubaniak/qail/internal/qailhome"
 )
 
 // Public types
@@ -51,21 +51,17 @@ var (
 	defaultRootDir   string
 )
 
-// defaultStore returns (and memoises) the production SQLite store living at
-// ~/.qail/qail.db. The parent directory is created on first use.
+// defaultStore returns (and memoises) the production SQLite store. Path
+// resolution and directory creation happen in qailhome.Default.
 func defaultStore() (*SQLiteStore, error) {
 	defaultStoreOnce.Do(func() {
-		h, err := os.UserHomeDir()
+		h, err := qailhome.Default()
 		if err != nil {
 			defaultStoreErr = err
 			return
 		}
-		defaultRootDir = filepath.Join(h, ".qail")
-		if err := os.MkdirAll(defaultRootDir, 0755); err != nil {
-			defaultStoreErr = err
-			return
-		}
-		s, err := NewSQLiteStore(filepath.Join(defaultRootDir, "qail.db"))
+		defaultRootDir = h.Root()
+		s, err := NewSQLiteStore(h.DBPath())
 		if err != nil {
 			defaultStoreErr = err
 			return
