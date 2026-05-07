@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/spf13/cobra"
 
-	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/forms"
 	"github.com/ubaniak/qail/internal/scripts"
 )
@@ -19,95 +19,84 @@ var (
 	cdScriptCmd = &cobra.Command{
 		Use: "cd",
 		Run: func(cmd *cobra.Command, args []string) {
-			fn := func(cfg *config.Config) error {
-				return scripts.Default().Cd()
+			if err := scripts.Default().Cd(); err != nil {
+				log.Fatalln(err)
 			}
-
-			HandleConfig(fn)
 		},
 	}
 	addScriptCmd = &cobra.Command{
 		Use:     "add",
 		Aliases: []string{"a"},
 		Run: func(cmd *cobra.Command, args []string) {
-			fn := func(cfg *config.Config) error {
-				s, err := forms.NewScript()
-				scripts.Default().CreateBashScript(s)
-
-				return err
+			name, err := forms.NewScript()
+			if err != nil {
+				log.Fatalln(err)
 			}
-
-			HandleConfig(fn)
+			if err := scripts.Default().CreateBashScript(name); err != nil {
+				log.Fatalln(err)
+			}
 		},
 	}
 	lsScriptCmd = &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Run: func(cmd *cobra.Command, args []string) {
-			fn := func(cfg *config.Config) error {
-				scriptList, err := scripts.Default().ListScripts()
-				if err != nil {
-					return err
-				}
-				forms.DisplayScripts(scriptList)
-
-				return nil
+			scriptList, err := scripts.Default().ListScripts()
+			if err != nil {
+				log.Fatalln(err)
 			}
-
-			HandleConfig(fn)
+			forms.DisplayScripts(scriptList)
 		},
 	}
 	openScriptCmd = &cobra.Command{
 		Use:     "open",
 		Aliases: []string{"o"},
 		Run: func(cmd *cobra.Command, args []string) {
-			fn := func(cfg *config.Config) error {
-				s := scripts.Default()
-				allScripts, err := s.ListScripts()
-				if err != nil {
-					return err
-				}
-				script, err := forms.SelectScript(allScripts)
-				if err != nil {
-					return err
-				}
-
-				return s.Open(cfg.Editor, script)
+			cfg, err := mustStore().Read()
+			if err != nil {
+				log.Fatalln(err)
 			}
-
-			HandleConfig(fn)
+			sc := scripts.Default()
+			allScripts, err := sc.ListScripts()
+			if err != nil {
+				log.Fatalln(err)
+			}
+			script, err := forms.SelectScript(allScripts)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			if err := sc.Open(cfg.Editor, script); err != nil {
+				log.Fatalln(err)
+			}
 		},
 	}
 	removeScriptCmd = &cobra.Command{
 		Use:     "remove",
 		Aliases: []string{"rm"},
 		Run: func(cmd *cobra.Command, args []string) {
-			fn := func(cfg *config.Config) error {
-				s := scripts.Default()
-				allScripts, err := s.ListScripts()
-				if err != nil {
-					return err
-				}
-				script, err := forms.SelectScript(allScripts)
-				if err != nil {
-					return err
-				}
-
-				confirm, err := forms.Confirm("This will remove the selected script. Do you want to continue?")
-				if err != nil {
-					return err
-				}
-
-				if !confirm {
-					fmt.Println("Aborting")
-					return nil
-				}
-				fmt.Printf("Removing %s\n", script)
-
-				return s.RemoveScript(script)
+			sc := scripts.Default()
+			allScripts, err := sc.ListScripts()
+			if err != nil {
+				log.Fatalln(err)
+			}
+			script, err := forms.SelectScript(allScripts)
+			if err != nil {
+				log.Fatalln(err)
 			}
 
-			HandleConfig(fn)
+			confirm, err := forms.Confirm("This will remove the selected script. Do you want to continue?")
+			if err != nil {
+				log.Fatalln(err)
+			}
+			if !confirm {
+				fmt.Println("Aborting")
+				return
+			}
+			fmt.Printf("Removing %s\n", script)
+
+			if err := sc.RemoveScript(script); err != nil {
+				log.Fatalln(err)
+			}
 		},
 	}
 )

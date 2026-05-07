@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/ubaniak/qail/internal/actions"
 	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/forms"
 )
@@ -43,25 +44,18 @@ var (
 		Use:  "editor",
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			fn := func(cfg *config.Config) error {
-				cfg.Editor = args[0]
-				return nil
+			if err := actions.SetEditor(mustStore(), args[0]); err != nil {
+				log.Fatalln(err)
 			}
-
-			HandleConfig(fn)
 		},
 	}
 	configRootCmd = &cobra.Command{
 		Use:  "root",
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-
-			fn := func(cfg *config.Config) error {
-				cfg.Root = args[0]
-				return nil
+			if err := actions.SetRoot(mustStore(), args[0]); err != nil {
+				log.Fatalln(err)
 			}
-
-			HandleConfig(fn)
 		},
 	}
 	configCmd = &cobra.Command{
@@ -74,6 +68,12 @@ func init() {
 	configCmd.AddCommand(configRootCmd, configEditorCmd, configLsCmd, configConvertCmd)
 }
 
+// HandleConfig runs fn against the loaded config and writes any mutation
+// back, logging fatally on error.
+//
+// Deprecated: prefer the actions package, which exposes one function per
+// user-facing operation backed by a config.Store. New cmd handlers should
+// not introduce HandleConfig calls.
 func HandleConfig(fn func(*config.Config) error) {
 	err := config.WithConfig(fn)
 	if err != nil {

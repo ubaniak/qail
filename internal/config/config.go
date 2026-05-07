@@ -75,8 +75,18 @@ func defaultStore() (*SQLiteStore, error) {
 	return defaultStoreVal, defaultStoreErr
 }
 
+// DefaultStore returns the lazily-initialised production Store at
+// ~/.qail/qail.db. New cmd handlers should prefer this over the package-level
+// shims below.
+func DefaultStore() (Store, error) {
+	return defaultStore()
+}
+
 // Package-level shims preserve the existing call sites in cmd/. They will be
 // dropped once cmd/ migrates to taking a Store directly (see #5 Actions).
+//
+// Deprecated: call config.DefaultStore() and use Store.Read / Store.Write,
+// or the actions package, which atomically wraps Read+mutate+Write.
 
 func ValidateConfig() error {
 	cfg, err := ReadFromFile()
@@ -89,6 +99,11 @@ func ValidateConfig() error {
 	return nil
 }
 
+// WithConfig runs fn against a snapshot, then writes the mutated snapshot
+// back atomically through the default Store.
+//
+// Deprecated: prefer the actions package which exposes one function per
+// user-facing operation, each backed by an explicit Store.
 func WithConfig(fn func(cfg *Config) error) error {
 	cfg, err := ReadFromFile()
 	if err != nil {

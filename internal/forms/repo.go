@@ -103,17 +103,19 @@ func SelectRepo(repos *map[string]string) (string, error) {
 
 }
 
-func RemoveRepo(repos *map[string]string) error {
-
+// SelectReposToRemove prompts the user to multi-select repos and confirm.
+// Returns the selected names, whether the user confirmed, and any prompt
+// error. The caller (typically actions.RemoveRepos) performs the deletion;
+// this function does not mutate any state.
+func SelectReposToRemove(repos map[string]string) ([]string, bool, error) {
 	var toRemove []string
 	s := huh.NewMultiSelect[string]().Value(&toRemove)
 
 	var opts []huh.Option[string]
-	for k, v := range *repos {
+	for k, v := range repos {
 		fmtStr := fmt.Sprintf("%s: %s", k, v)
 		opts = append(opts, huh.NewOption(fmtStr, k))
 	}
-
 	s.Options(opts...)
 
 	var confirm bool
@@ -127,20 +129,10 @@ func RemoveRepo(repos *map[string]string) error {
 		huh.NewGroup(s),
 		huh.NewGroup(c),
 	)
-	err := f.Run()
-	if err != nil {
-		return err
+	if err := f.Run(); err != nil {
+		return nil, false, err
 	}
-
-	if !confirm {
-		return nil
-	}
-
-	for _, r := range toRemove {
-		delete(*repos, r)
-	}
-
-	return nil
+	return toRemove, confirm, nil
 }
 
 func DisplayRepos(r map[string]string, postInstallScripts map[string][]string) {

@@ -1,9 +1,10 @@
 package cmd
 
 import (
+	"log"
+
 	"github.com/spf13/cobra"
 
-	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/forms"
 	"github.com/ubaniak/qail/internal/tmux"
 )
@@ -18,40 +19,32 @@ var (
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Run: func(cmd *cobra.Command, args []string) {
-			fn := func(cfg *config.Config) error {
-				sessions, err := tmux.Default().ListSessions()
-				if err != nil {
-					return err
-				}
-				forms.DisplayTmuxSessions(sessions)
-				return nil
+			sessions, err := tmux.Default().ListSessions()
+			if err != nil {
+				log.Fatalln(err)
 			}
-
-			HandleConfig(fn)
+			forms.DisplayTmuxSessions(sessions)
 		},
 	}
 	rmTmuxCmd = &cobra.Command{
 		Use:     "remove",
 		Aliases: []string{"rm"},
 		Run: func(cmd *cobra.Command, args []string) {
-			fn := func(cfg *config.Config) error {
-				t := tmux.Default()
-				sessions, err := t.ListSessions()
-				if err != nil {
-					return err
-				}
-				s, ok, err := forms.RemoveTmuxSession(sessions)
-				if !ok {
-					return nil
-				}
-				if err != nil {
-					return err
-				}
-
-				return t.RemoveSession(s)
+			t := tmux.Default()
+			sessions, err := t.ListSessions()
+			if err != nil {
+				log.Fatalln(err)
 			}
-
-			HandleConfig(fn)
+			s, ok, err := forms.RemoveTmuxSession(sessions)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			if !ok {
+				return
+			}
+			if err := t.RemoveSession(s); err != nil {
+				log.Fatalln(err)
+			}
 		},
 	}
 )

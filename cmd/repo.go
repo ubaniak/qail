@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/ubaniak/qail/internal/actions"
 	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/forms"
 	"github.com/ubaniak/qail/internal/scripts"
@@ -21,39 +22,36 @@ var (
 		Use:     "remove",
 		Aliases: []string{"rm"},
 		Run: func(cmd *cobra.Command, args []string) {
-			fn := func(cfg *config.Config) error {
-				err := forms.RemoveRepo(&cfg.Repos)
-				if err != nil {
-					return err
-				}
-
-				if cfg.Repos == nil {
-					cfg.Repos = make(map[string]string)
-				}
-				return nil
+			s := mustStore()
+			repos, _, err := actions.ListRepos(s)
+			if err != nil {
+				log.Fatalln(err)
 			}
 
-			HandleConfig(fn)
+			toRemove, confirmed, err := forms.SelectReposToRemove(repos)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			if !confirmed {
+				return
+			}
+
+			if err := actions.RemoveRepos(s, toRemove); err != nil {
+				log.Fatalln(err)
+			}
 		},
 	}
 	addRepoCmd = &cobra.Command{
 		Use:     "add",
 		Aliases: []string{"a"},
 		Run: func(cmd *cobra.Command, args []string) {
-			fn := func(cfg *config.Config) error {
-				r, err := forms.AddRepo()
-				if err != nil {
-					log.Fatalln(err)
-				}
-
-				if cfg.Repos == nil {
-					cfg.Repos = make(map[string]string)
-				}
-				cfg.Repos[r.Name] = r.Repo
-				return nil
+			r, err := forms.AddRepo()
+			if err != nil {
+				log.Fatalln(err)
 			}
-
-			HandleConfig(fn)
+			if err := actions.AddRepo(mustStore(), r.Name, r.Repo); err != nil {
+				log.Fatalln(err)
+			}
 		},
 	}
 	listRepoCmd = &cobra.Command{
@@ -61,14 +59,14 @@ var (
 		Aliases: []string{"ls"},
 		Args:    cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			fn := func(cfg *config.Config) error {
-				if cfg.Repos == nil {
-					return errors.New("no packages found. Please add a package")
-				}
-				forms.DisplayRepos(cfg.Repos, cfg.PostInstallScripts.Repo)
-				return nil
+			repos, postInstall, err := actions.ListRepos(mustStore())
+			if err != nil {
+				log.Fatalln(err)
 			}
-			HandleConfig(fn)
+			if repos == nil {
+				log.Fatalln(errors.New("no packages found. Please add a package"))
+			}
+			forms.DisplayRepos(repos, postInstall)
 		},
 	}
 	postInstallScriptRepoCmd = &cobra.Command{
@@ -76,42 +74,44 @@ var (
 		Aliases: []string{"p"},
 		Args:    cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			fn := func(cfg *config.Config) error {
-				if cfg.PostInstallScripts.Repo == nil {
-					cfg.PostInstallScripts.Repo = make(map[string][]string)
-				}
-
-				r, err := forms.SelectRepo(&cfg.Repos)
-				if err != nil {
-					return err
-				}
-
-				var selected []string
-				if _, ok := cfg.PostInstallScripts.Repo[r]; !ok {
-					cfg.PostInstallScripts.Repo[r] = []string{}
-				}
-
-				selected = cfg.PostInstallScripts.Repo[r]
-
-				scripts, err := scripts.Default().ListScripts()
-				if err != nil {
-					return nil
-				}
-
-				updatedScripts, err := forms.SelectScripts(scripts, selected)
-
-				if err != nil {
-					return err
-				}
-
-				cfg.PostInstallScripts.Repo[r] = updatedScripts
-
-				return nil
+			s := mustStore()
+			repos, postInstall, err := actions.ListRepos(s)
+			if err != nil {
+				log.Fatalln(err)
 			}
-			HandleConfig(fn)
+
+			r, err := forms.SelectRepo(&repos)
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			selected := postInstall[r]
+
+			scriptList, err := scripts.Default().ListScripts()
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			updatedScripts, err := forms.SelectScripts(scriptList, selected)
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			if err := actions.SetRepoPostInstall(s, r, updatedScripts); err != nil {
+				log.Fatalln(err)
+			}
 		},
 	}
 )
+
+// mustStore returns the production config.Store or fatally exits.
+func mustStore() config.Store {
+	s, err := config.DefaultStore()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	return s
+}
 
 func init() {
 	repoCmd.AddCommand(addRepoCmd, listRepoCmd, rmRepoCmd, postInstallScriptRepoCmd)
