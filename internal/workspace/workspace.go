@@ -11,9 +11,8 @@ import (
 	"github.com/ubaniak/qail/internal/color"
 	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/forms"
-	"github.com/ubaniak/qail/internal/git"
+	"github.com/ubaniak/qail/internal/installer"
 	"github.com/ubaniak/qail/internal/runner"
-	"github.com/ubaniak/qail/internal/scripts"
 	"github.com/ubaniak/qail/internal/tmux"
 )
 
@@ -75,34 +74,28 @@ func (w Workspace) Create() error {
 
 func (w Workspace) populate(wsPath string) error {
 	fmt.Printf("Creating workspace %s ...\n", color.Cyan(wsPath))
+	inst := installer.Default()
+
 	for _, p := range w.Packages {
 		fmt.Printf("* Adding package %s ...\n", color.Cyan(p))
-		rPath := path.Join(wsPath, p)
-		if r, ok := w.Repos[p]; ok {
-			m := fmt.Sprintf("Cloning %s", color.Cyan(p))
-			git.Default().CloneWithProgress(r, rPath, m)
+		spec := installer.PackageSpec{
+			Name:        p,
+			RepoURL:     w.Repos[p],
+			Dest:        path.Join(wsPath, p),
+			PostInstall: w.RepoPostInstall[p],
 		}
-		if postInstallScripts, ok := w.RepoPostInstall[p]; ok {
-			if len(postInstallScripts) > 0 {
-				fmt.Printf("Running post install scripts for %s: %s \n", color.Green("repos"), color.Cyan(p))
-			}
-			sc := scripts.Default()
-			for _, s := range postInstallScripts {
-				fmt.Printf("   * Running post install script: %s\n", color.Cyan(s))
-				sc.RunBashScript(s, rPath)
-			}
+		if err := inst.Install(spec); err != nil {
+			return err
 		}
 		fmt.Println()
 	}
 
-	if postInstallScripts, ok := w.WSPostInstall[w.Name]; ok {
-		if len(postInstallScripts) > 0 {
+	if wsScripts, ok := w.WSPostInstall[w.Name]; ok {
+		if len(wsScripts) > 0 {
 			fmt.Printf("Running post install scripts for %s: %s \n", color.Green("workspace"), color.Cyan(w.Name))
 		}
-		sc := scripts.Default()
-		for _, s := range postInstallScripts {
-			fmt.Printf("   * Running post install script: %s\n", color.Cyan(s))
-			sc.RunBashScript(s, wsPath)
+		if err := inst.RunPostInstall(wsPath, wsScripts); err != nil {
+			return err
 		}
 	}
 

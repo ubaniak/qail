@@ -33,12 +33,14 @@ func (g *Git) Clone(repo, path string) (string, error) {
 	return string(res.Stdout), err
 }
 
-// CloneWithProgress wraps Clone in the huh spinner UI. Errors are swallowed
-// to preserve the previous package-level behaviour; the spinner has no
-// channel for them.
-func (g *Git) CloneWithProgress(repo, path, message string) {
+// CloneWithProgress wraps Clone in the huh spinner UI and returns the clone
+// error (if any). The spinner itself has no error channel, so the closure
+// captures the error for return.
+func (g *Git) CloneWithProgress(repo, path, message string) error {
+	var cloneErr error
 	clone := func() {
-		g.Clone(repo, path)
+		_, cloneErr = g.Clone(repo, path)
 	}
 	forms.Spinner(clone, message)
+	return cloneErr
 }
