@@ -3,12 +3,24 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"slices"
 
 	"github.com/spf13/cobra"
 
 	"github.com/ubaniak/qail/internal/forms"
 	"github.com/ubaniak/qail/internal/scripts"
 )
+
+// scriptExists reports whether name appears in the scripts dir. Used by
+// non-interactive paths so a typo fails loudly before we touch the
+// filesystem.
+func scriptExists(sc *scripts.Scripts, name string) (bool, error) {
+	all, err := sc.ListScripts()
+	if err != nil {
+		return false, err
+	}
+	return slices.Contains(all, name), nil
+}
 
 var (
 	scriptsCmd = &cobra.Command{
@@ -25,12 +37,20 @@ var (
 		},
 	}
 	addScriptCmd = &cobra.Command{
-		Use:     "add",
+		Use:     "add [name]",
 		Aliases: []string{"a"},
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			name, err := forms.NewScript()
-			if err != nil {
-				log.Fatalln(err)
+			name := firstArg(args)
+			if name == "" {
+				if err := requireTTY("script name"); err != nil {
+					log.Fatalln(err)
+				}
+				n, err := forms.NewScript()
+				if err != nil {
+					log.Fatalln(err)
+				}
+				name = n
 			}
 			if err := scripts.Default().CreateBashScript(name); err != nil {
 				log.Fatalln(err)
@@ -49,14 +69,33 @@ var (
 		},
 	}
 	openScriptCmd = &cobra.Command{
-		Use:     "open",
+		Use:     "open [name]",
 		Aliases: []string{"o"},
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			cfg, err := mustStore().Read()
 			if err != nil {
 				log.Fatalln(err)
 			}
 			sc := scripts.Default()
+
+			if name := firstArg(args); name != "" {
+				ok, err := scriptExists(sc, name)
+				if err != nil {
+					log.Fatalln(err)
+				}
+				if !ok {
+					log.Fatalf("script %q not found\n", name)
+				}
+				if err := sc.Open(cfg.Editor, name); err != nil {
+					log.Fatalln(err)
+				}
+				return
+			}
+
+			if err := requireTTY("script name"); err != nil {
+				log.Fatalln(err)
+			}
 			allScripts, err := sc.ListScripts()
 			if err != nil {
 				log.Fatalln(err)
@@ -71,10 +110,43 @@ var (
 		},
 	}
 	removeScriptCmd = &cobra.Command{
-		Use:     "remove",
+		Use:     "remove [name]",
 		Aliases: []string{"rm"},
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			sc := scripts.Default()
+
+			if name := firstArg(args); name != "" {
+				ok, err := scriptExists(sc, name)
+				if err != nil {
+					log.Fatalln(err)
+				}
+				if !ok {
+					log.Fatalf("script %q not found\n", name)
+				}
+				if !flagYes {
+					if err := requireTTY("--yes for non-interactive remove"); err != nil {
+						log.Fatalln(err)
+					}
+					confirm, err := forms.Confirm(fmt.Sprintf("Remove script %q?", name))
+					if err != nil {
+						log.Fatalln(err)
+					}
+					if !confirm {
+						fmt.Println("Aborting")
+						return
+					}
+				}
+				fmt.Printf("Removing %s\n", name)
+				if err := sc.RemoveScript(name); err != nil {
+					log.Fatalln(err)
+				}
+				return
+			}
+
+			if err := requireTTY("script name"); err != nil {
+				log.Fatalln(err)
+			}
 			allScripts, err := sc.ListScripts()
 			if err != nil {
 				log.Fatalln(err)

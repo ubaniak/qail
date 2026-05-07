@@ -17,13 +17,37 @@ import (
 	"github.com/ubaniak/qail/internal/workspace"
 )
 
-// resolveWorkspacePath reads a snapshot, lets the user pick a workspace,
-// and returns the on-disk path plus the picked profile. Used by every
-// flow that needs to "select an existing workspace and act on it" before
-// the action wraps the LastUsed update.
-func resolveWorkspacePath(s config.Store) (string, string, []string, error) {
+// flag-backed inputs for non-interactive workspace commands.
+var (
+	wsAddRepos    []string
+	wsEditRepos   []string
+	wsCloneRepos  []string
+	wsPIScripts   []string
+	wsPIClear     bool
+)
+
+// resolveWorkspaceName returns a workspace name + its on-disk path.
+// If `name` is non-empty it is validated against the registry; otherwise
+// a TUI selector runs (unless --no-tty, which becomes a hard error).
+func resolveWorkspaceName(s config.Store, name string) (string, string, []string, error) {
 	ctx, err := actions.ReadWorkspaceContext(s)
 	if err != nil {
+		return "", "", nil, err
+	}
+
+	if name != "" {
+		profile, ok := ctx.Workspaces[name]
+		if !ok {
+			return "", "", nil, fmt.Errorf("workspace %q not found", name)
+		}
+		wsPath := path.Join(ctx.Root, name)
+		if _, err := os.Stat(wsPath); os.IsNotExist(err) {
+			return "", "", nil, fmt.Errorf("workspace %q does not exist on disk. Please run qail ws create", wsPath)
+		}
+		return name, wsPath, profile.Repos, nil
+	}
+
+	if err := requireTTY("workspace name"); err != nil {
 		return "", "", nil, err
 	}
 	r, err := forms.FindWorkspace(ctx.Workspaces)
@@ -37,6 +61,14 @@ func resolveWorkspacePath(s config.Store) (string, string, []string, error) {
 	return r.Name, wsPath, r.Packages, nil
 }
 
+// firstArg returns args[0] when present, "" otherwise.
+func firstArg(args []string) string {
+	if len(args) > 0 {
+		return args[0]
+	}
+	return ""
+}
+
 var (
 	wsCmd = &cobra.Command{
 		Use:     "workspace",
@@ -44,28 +76,26 @@ var (
 		Short:   "Manage your workspaces",
 	}
 	exploreCmd = &cobra.Command{
-		Use:     "explore",
+		Use:     "explore [name]",
 		Aliases: []string{"exp"},
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
-			ctx, err := actions.ReadWorkspaceContext(s)
+			name, wsPath, _, err := resolveWorkspaceName(s, firstArg(args))
 			if err != nil {
 				log.Fatalln(err)
 			}
-			r, err := forms.FindWorkspace(ctx.Workspaces)
-			if err != nil {
-				log.Fatalln(err)
-			}
-			ws := path.Join(ctx.Root, r.Name)
-			workspace.Explore(ws)
+			_ = name
+			workspace.Explore(wsPath)
 		},
 	}
 	openWsCmd = &cobra.Command{
-		Use:     "open",
+		Use:     "open [name]",
 		Aliases: []string{"o"},
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
-			name, wsPath, _, err := resolveWorkspacePath(s)
+			name, wsPath, _, err := resolveWorkspaceName(s, firstArg(args))
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -80,10 +110,11 @@ var (
 		},
 	}
 	cdWsCmd = &cobra.Command{
-		Use: "cd",
+		Use:  "cd [name]",
+		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
-			name, wsPath, _, err := resolveWorkspacePath(s)
+			name, wsPath, _, err := resolveWorkspaceName(s, firstArg(args))
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -94,11 +125,12 @@ var (
 		},
 	}
 	tmuxWsCmd = &cobra.Command{
-		Use:     "mux",
+		Use:     "mux [name]",
 		Aliases: []string{"m"},
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
-			name, wsPath, _, err := resolveWorkspacePath(s)
+			name, wsPath, _, err := resolveWorkspaceName(s, firstArg(args))
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -114,10 +146,42 @@ var (
 		},
 	}
 	removeWsCmd = &cobra.Command{
-		Use:     "remove",
+		Use:     "remove [name]",
 		Aliases: []string{"rm"},
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
+
+			// Non-interactive: name positional, --yes skips confirm.
+			if name := firstArg(args); name != "" {
+				ctx, err := actions.ReadWorkspaceContext(s)
+				if err != nil {
+					log.Fatalln(err)
+				}
+				if _, ok := ctx.Workspaces[name]; !ok {
+					log.Fatalf("workspace %q not found\n", name)
+				}
+				if !flagYes {
+					if err := requireTTY("--yes for non-interactive remove"); err != nil {
+						log.Fatalln(err)
+					}
+					ok, err := forms.Confirm(fmt.Sprintf("Remove workspace %q?", name))
+					if err != nil {
+						log.Fatalln(err)
+					}
+					if !ok {
+						return
+					}
+				}
+				if err := actions.RemoveWorkspace(s, name); err != nil {
+					log.Fatalln(err)
+				}
+				return
+			}
+
+			if err := requireTTY("workspace name"); err != nil {
+				log.Fatalln(err)
+			}
 			ctx, err := actions.ReadWorkspaceContext(s)
 			if err != nil {
 				log.Fatalln(err)
@@ -147,10 +211,29 @@ var (
 		},
 	}
 	createWsCmd = &cobra.Command{
-		Use:     "create",
+		Use:     "create [name]",
 		Aliases: []string{"c"},
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
+
+			if name := firstArg(args); name != "" {
+				ctx, err := actions.ReadWorkspaceContext(s)
+				if err != nil {
+					log.Fatalln(err)
+				}
+				if _, ok := ctx.Workspaces[name]; !ok {
+					log.Fatalf("workspace %q not found in registry; use `ws add` first\n", name)
+				}
+				if err := actions.CreateWorkspaceOnDisk(s, name); err != nil {
+					log.Fatalln(err)
+				}
+				return
+			}
+
+			if err := requireTTY("workspace name"); err != nil {
+				log.Fatalln(err)
+			}
 			ctx, err := actions.ReadWorkspaceContext(s)
 			if err != nil {
 				log.Fatalln(err)
@@ -165,9 +248,39 @@ var (
 		},
 	}
 	cloneWsCmd = &cobra.Command{
-		Use: "clone",
+		Use:  "clone [src] [dst]",
+		Args: cobra.MaximumNArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
+
+			// Non-interactive: src + dst positional. --repo overrides src's
+			// package list; without it the dst inherits src's repos.
+			if len(args) == 2 {
+				src, dst := args[0], args[1]
+				ctx, err := actions.ReadWorkspaceContext(s)
+				if err != nil {
+					log.Fatalln(err)
+				}
+				srcProfile, ok := ctx.Workspaces[src]
+				if !ok {
+					log.Fatalf("source workspace %q not found\n", src)
+				}
+				if _, exists := ctx.Workspaces[dst]; exists {
+					log.Fatalf("destination workspace %q already exists\n", dst)
+				}
+				pkgs := srcProfile.Repos
+				if len(wsCloneRepos) > 0 {
+					pkgs = wsCloneRepos
+				}
+				if err := actions.CloneWorkspace(s, dst, pkgs); err != nil {
+					log.Fatalln(err)
+				}
+				return
+			}
+
+			if err := requireTTY("src + dst workspace names"); err != nil {
+				log.Fatalln(err)
+			}
 			ctx, err := actions.ReadWorkspaceContext(s)
 			if err != nil {
 				log.Fatalln(err)
@@ -186,13 +299,25 @@ var (
 		},
 	}
 	addWsCmd = &cobra.Command{
-		Use:     "add",
+		Use:     "add [name]",
 		Aliases: []string{"a"},
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
-			// forms.NewWorkspace needs the repo map; ReadWorkspaceContext
-			// only carries Root/Editor/Workspaces, so read the snapshot
-			// directly here for the repo list.
+
+			// Non-interactive: name positional. --repo optional (empty
+			// list creates an empty workspace, matching what the TUI
+			// allows when no packages are selected).
+			if name := firstArg(args); name != "" {
+				if err := actions.AddWorkspace(s, name, wsAddRepos); err != nil {
+					log.Fatalln(err)
+				}
+				return
+			}
+
+			if err := requireTTY("workspace name"); err != nil {
+				log.Fatalln(err)
+			}
 			cfg, err := s.Read()
 			if err != nil {
 				log.Fatalln(err)
@@ -207,10 +332,25 @@ var (
 		},
 	}
 	editWsCmd = &cobra.Command{
-		Use:     "edit",
+		Use:     "edit [name]",
 		Aliases: []string{"e"},
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
+
+			// Non-interactive: name positional + --repo (full replacement).
+			// --repo with zero values clears the package list — same shape
+			// as the TUI letting you deselect everything.
+			if name := firstArg(args); name != "" && cmd.Flags().Changed("repo") {
+				if err := actions.EditWorkspace(s, name, wsEditRepos); err != nil {
+					log.Fatalln(err)
+				}
+				return
+			}
+
+			if err := requireTTY("workspace name + --repo flags"); err != nil {
+				log.Fatalln(err)
+			}
 			cfg, err := s.Read()
 			if err != nil {
 				log.Fatalln(err)
@@ -236,12 +376,17 @@ var (
 			if err != nil {
 				log.Fatalln(err)
 			}
-			ok, err := forms.CleanWorkspace()
-			if err != nil {
-				log.Fatalln(err)
-			}
-			if !ok {
-				return
+			if !flagYes {
+				if err := requireTTY("--yes for non-interactive clean"); err != nil {
+					log.Fatalln(err)
+				}
+				ok, err := forms.CleanWorkspace()
+				if err != nil {
+					log.Fatalln(err)
+				}
+				if !ok {
+					return
+				}
 			}
 			if err := workspace.Clean(ctx.Root, ctx.Workspaces); err != nil {
 				log.Fatalln(err)
@@ -249,20 +394,49 @@ var (
 		},
 	}
 	postInstallScriptWsCmd = &cobra.Command{
-		Use:     "post-install-script",
+		Use:     "post-install-script [name]",
 		Aliases: []string{"p"},
-		Args:    cobra.NoArgs,
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
 			wsMap, postInstall, err := actions.ListWorkspaces(s)
 			if err != nil {
 				log.Fatalln(err)
 			}
-			ws, err := forms.FindWorkspace(wsMap)
-			if err != nil {
+
+			// Non-interactive: ws name + --script (repeatable) or --clear.
+			if name := firstArg(args); name != "" && (len(wsPIScripts) > 0 || wsPIClear) {
+				if _, ok := wsMap[name]; !ok {
+					log.Fatalf("workspace %q not found\n", name)
+				}
+				out := wsPIScripts
+				if wsPIClear {
+					out = nil
+				}
+				if err := actions.SetWorkspacePostInstall(s, name, out); err != nil {
+					log.Fatalln(err)
+				}
+				return
+			}
+
+			if err := requireTTY("workspace name + --script/--clear flags"); err != nil {
 				log.Fatalln(err)
 			}
-			selected := postInstall[ws.Name]
+
+			var name string
+			if n := firstArg(args); n != "" {
+				if _, ok := wsMap[n]; !ok {
+					log.Fatalf("workspace %q not found\n", n)
+				}
+				name = n
+			} else {
+				ws, err := forms.FindWorkspace(wsMap)
+				if err != nil {
+					log.Fatalln(err)
+				}
+				name = ws.Name
+			}
+			selected := postInstall[name]
 
 			scriptList, err := scripts.Default().ListScripts()
 			if err != nil {
@@ -272,7 +446,7 @@ var (
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if err := actions.SetWorkspacePostInstall(s, ws.Name, updated); err != nil {
+			if err := actions.SetWorkspacePostInstall(s, name, updated); err != nil {
 				log.Fatalln(err)
 			}
 		},
@@ -280,5 +454,11 @@ var (
 )
 
 func init() {
+	addWsCmd.Flags().StringSliceVarP(&wsAddRepos, "repo", "r", nil, "repo name to include (repeatable, or comma-separated)")
+	editWsCmd.Flags().StringSliceVarP(&wsEditRepos, "repo", "r", nil, "repo names that fully replace the workspace's package list")
+	cloneWsCmd.Flags().StringSliceVarP(&wsCloneRepos, "repo", "r", nil, "override repo list for the clone (defaults to source)")
+	postInstallScriptWsCmd.Flags().StringSliceVarP(&wsPIScripts, "script", "s", nil, "post-install script name (repeatable, or comma-separated)")
+	postInstallScriptWsCmd.Flags().BoolVar(&wsPIClear, "clear", false, "clear all post-install scripts for the workspace")
+
 	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd, tmuxWsCmd, postInstallScriptWsCmd, exploreCmd)
 }
