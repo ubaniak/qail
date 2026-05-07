@@ -7,7 +7,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/ubaniak/qail/internal/clip"
+	"github.com/atotto/clipboard"
+
 	"github.com/ubaniak/qail/internal/color"
 	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/forms"
@@ -16,6 +17,15 @@ import (
 	"github.com/ubaniak/qail/internal/tmux"
 )
 
+// Installer is the narrow consumer interface workspace.Create needs to
+// populate a workspace directory. *installer.Installer satisfies it. The
+// interface lives here (the consumer) so workspace tests can substitute a
+// fake without importing the production installer.
+type Installer interface {
+	Install(spec installer.PackageSpec) error
+	RunPostInstall(dir string, scripts []string) error
+}
+
 type Workspace struct {
 	Root            string
 	Name            string
@@ -23,9 +33,13 @@ type Workspace struct {
 	Repos           map[string]string
 	RepoPostInstall map[string][]string
 	WSPostInstall   map[string][]string
+	inst            Installer
+	fs              FS
 }
 
-func New(root, name string, packages []string, repos map[string]string) Workspace {
+// New constructs a Workspace wired to inst and fs. Production callers
+// should use NewDefault; tests inject fakes here.
+func New(root, name string, packages []string, repos map[string]string, inst Installer, fs FS) Workspace {
 	return Workspace{
 		Root:            root,
 		Name:            name,
@@ -33,7 +47,16 @@ func New(root, name string, packages []string, repos map[string]string) Workspac
 		Repos:           repos,
 		RepoPostInstall: make(map[string][]string),
 		WSPostInstall:   make(map[string][]string),
+		inst:            inst,
+		fs:              fs,
 	}
+}
+
+// NewDefault constructs a Workspace wired to installer.Default() and
+// OSFS{} — the production OS-backed git + scripts + filesystem trio. Cmd
+// handlers and actions use this; tests use New with fake adapters.
+func NewDefault(root, name string, packages []string, repos map[string]string) Workspace {
+	return New(root, name, packages, repos, installer.Default(), OSFS{})
 }
 
 func (w *Workspace) WithRepoPostInstallScripts(p map[string][]string) *Workspace {
@@ -47,8 +70,8 @@ func (w *Workspace) WithWSPostInstallScripts(p map[string][]string) *Workspace {
 }
 
 func (w Workspace) Create() error {
-	if _, err := os.Stat(w.Root); os.IsNotExist(err) {
-		if err := os.Mkdir(w.Root, 0755); err != nil {
+	if _, err := w.fs.Stat(w.Root); os.IsNotExist(err) {
+		if err := w.fs.Mkdir(w.Root, 0755); err != nil {
 			return fmt.Errorf("failed to create root directory: %v", err)
 		}
 	}
@@ -56,8 +79,8 @@ func (w Workspace) Create() error {
 	wsPath := path.Join(w.Root, w.Name)
 
 	wsCreated := false
-	if _, err := os.Stat(wsPath); os.IsNotExist(err) {
-		if err := os.Mkdir(wsPath, 0755); err != nil {
+	if _, err := w.fs.Stat(wsPath); os.IsNotExist(err) {
+		if err := w.fs.Mkdir(wsPath, 0755); err != nil {
 			return fmt.Errorf("failed to create workspace directory: %v", err)
 		}
 		wsCreated = true
@@ -65,7 +88,7 @@ func (w Workspace) Create() error {
 
 	if err := w.populate(wsPath); err != nil {
 		if wsCreated {
-			os.RemoveAll(wsPath)
+			w.fs.RemoveAll(wsPath)
 		}
 		return err
 	}
@@ -74,7 +97,6 @@ func (w Workspace) Create() error {
 
 func (w Workspace) populate(wsPath string) error {
 	fmt.Printf("Creating workspace %s ...\n", color.Cyan(wsPath))
-	inst := installer.Default()
 
 	for _, p := range w.Packages {
 		fmt.Printf("* Adding package %s ...\n", color.Cyan(p))
@@ -84,7 +106,7 @@ func (w Workspace) populate(wsPath string) error {
 			Dest:        path.Join(wsPath, p),
 			PostInstall: w.RepoPostInstall[p],
 		}
-		if err := inst.Install(spec); err != nil {
+		if err := w.inst.Install(spec); err != nil {
 			return err
 		}
 		fmt.Println()
@@ -94,7 +116,7 @@ func (w Workspace) populate(wsPath string) error {
 		if len(wsScripts) > 0 {
 			fmt.Printf("Running post install scripts for %s: %s \n", color.Green("workspace"), color.Cyan(w.Name))
 		}
-		if err := inst.RunPostInstall(wsPath, wsScripts); err != nil {
+		if err := w.inst.RunPostInstall(wsPath, wsScripts); err != nil {
 			return err
 		}
 	}
@@ -108,13 +130,13 @@ func (w Workspace) Remove() error {
 	wsPath := path.Join(w.Root, w.Name)
 
 	fmt.Printf("removing %s", wsPath)
-	return os.RemoveAll(wsPath)
+	return w.fs.RemoveAll(wsPath)
 }
 
 func (w Workspace) RemoveRepo(repo string) error {
 	wsPath := path.Join(w.Root, w.Name, repo)
 
-	return os.RemoveAll(wsPath)
+	return w.fs.RemoveAll(wsPath)
 }
 
 // defaultRunner returns the production Runner used by free functions in this
@@ -146,29 +168,45 @@ func Explore(ws string) (string, error) {
 	return string(res.Stdout), err
 }
 
+// Cd copies a `cd <ws>` command to the clipboard so the user can paste it
+// into a real shell. The qail process cannot change the parent shell's
+// directory directly.
 func Cd(ws string) {
-	clip.Cd(ws)
+	cmd := fmt.Sprintf("cd %s", ws)
+	fmt.Printf("%s copied %s to clipboard\n\n", color.Yellow(">>>"), color.Green(cmd))
+	clipboard.WriteAll(cmd)
 }
 
-func Tmux(ws string) error {
+// Tmux ensures a tmux session exists for the workspace at ws, then returns
+// the shell command the user must paste to attach. The qail process cannot
+// attach itself; the caller decides whether to copy the command to the
+// clipboard or display it.
+func Tmux(ws string) (string, error) {
 	t := tmux.Default()
 	err, _ := t.IsInstalled()
 	if err != nil {
-		return err
+		return "", err
 	}
 	sessionName := t.SessionName(ws)
 	if !t.SessionExists(sessionName) {
-		err := t.Launch(ws)
-		if err != nil {
-			return err
+		if err := t.Launch(ws); err != nil {
+			return "", err
 		}
 	}
-	t.Attach(sessionName)
-	return nil
+	return t.AttachCommand(sessionName), nil
 }
 
+// Clean lists root, identifies subdirectories not tracked in ws, prompts
+// the user, then deletes the orphans. Production callers go through Clean;
+// tests substitute fs and confirm via cleanWithDeps.
 func Clean(root string, ws config.Workspace) error {
-	files, err := os.ReadDir(root)
+	return cleanWithDeps(OSFS{}, forms.Confirm, root, ws)
+}
+
+// cleanWithDeps is the testable shape: pass a FS adapter and a confirm
+// function. Production wires OSFS + forms.Confirm; tests wire fakes.
+func cleanWithDeps(fs FS, confirm func(string) (bool, error), root string, ws config.Workspace) error {
+	files, err := fs.ReadDir(root)
 	if err != nil {
 		return err
 	}
@@ -195,7 +233,7 @@ func Clean(root string, ws config.Workspace) error {
 		fmt.Printf("   * %s\n", color.Cyan(name))
 	}
 
-	confirmed, err := forms.Confirm("Delete these directories?")
+	confirmed, err := confirm("Delete these directories?")
 	if err != nil {
 		return err
 	}
@@ -206,7 +244,7 @@ func Clean(root string, ws config.Workspace) error {
 
 	for _, name := range toDelete {
 		fmt.Printf("%s Deleting: %s\n", color.Yellow(">>>"), color.Cyan(name))
-		if err := os.RemoveAll(path.Join(root, name)); err != nil {
+		if err := fs.RemoveAll(path.Join(root, name)); err != nil {
 			return err
 		}
 	}

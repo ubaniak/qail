@@ -6,9 +6,9 @@ import (
 )
 
 type fakeGit struct {
-	calls    []string
-	err      error
-	called   bool
+	calls  []string
+	err    error
+	called bool
 }
 
 func (f *fakeGit) CloneWithProgress(repo, path, _ string) error {

@@ -17,7 +17,7 @@ import (
 //   - Then alternates per subfolder, starting with split:
 //     even index -> split-window -t <sessionName>:<windowIndex> -c <subPath> -h
 //     odd  index -> windowIndex++ ; new-window -t <sessionName> -c <subPath>
-//                  -n SubFolders<windowIndex>
+//     -n SubFolders<windowIndex>
 //
 // The function is pure: no filesystem, no subprocess, no global state. Filter
 // hidden / non-directory entries before calling Plan.

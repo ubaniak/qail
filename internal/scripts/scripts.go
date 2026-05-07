@@ -9,7 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ubaniak/qail/internal/clip"
+	"github.com/atotto/clipboard"
+
 	"github.com/ubaniak/qail/internal/color"
 	"github.com/ubaniak/qail/internal/qailhome"
 	"github.com/ubaniak/qail/internal/runner"
@@ -189,11 +190,16 @@ func (s *Scripts) Open(editor, scriptName string) error {
 	return err
 }
 
+// Cd copies a `cd <scriptsDir>` command to the clipboard so the user can
+// paste it into a real shell. The qail process cannot change the parent
+// shell's directory directly.
 func (s *Scripts) Cd() error {
 	scriptDir, err := s.GetScriptDir()
 	if err != nil {
 		return err
 	}
-	clip.Cd(scriptDir)
+	cmd := fmt.Sprintf("cd %s", scriptDir)
+	fmt.Printf("%s copied %s to clipboard\n\n", color.Yellow(">>>"), color.Green(cmd))
+	clipboard.WriteAll(cmd)
 	return nil
 }

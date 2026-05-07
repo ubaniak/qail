@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ubaniak/qail/internal/clip"
 	"github.com/ubaniak/qail/internal/runner"
 )
 
@@ -29,11 +28,12 @@ func New(r Runner) *Tmux { return &Tmux{r: r} }
 // Default returns a Tmux wired to the OS Runner.
 func Default() *Tmux { return New(runner.NewOS()) }
 
-// Attach copies the `tmux a -t <session>` command to the clipboard. The
-// caller pastes it into a real shell since `tmux a` requires a TTY.
-func (t *Tmux) Attach(sessionName string) {
-	cmd := fmt.Sprintf("tmux a -t %s", shellQuote(sessionName))
-	clip.Cmd(cmd)
+// AttachCommand returns the shell command the user must run to attach to
+// sessionName from a real terminal. tmux requires a TTY, so the qail
+// process cannot attach itself; the caller decides what to do with the
+// returned string (typically copy it to the clipboard).
+func (t *Tmux) AttachCommand(sessionName string) string {
+	return fmt.Sprintf("tmux a -t %s", shellQuote(sessionName))
 }
 
 func shellQuote(s string) string {

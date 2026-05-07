@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -115,8 +114,7 @@ func ConvertOldToNew() {
 	if err != nil {
 		panic(fmt.Sprintf("failed to open store: %v", err))
 	}
-	jsonPath := filepath.Join(defaultRootDir, "config.json")
-	if err := s.ConvertJSON(jsonPath); err != nil {
+	if err := s.ConvertJSON(defaultLegacyJSON); err != nil {
 		panic(err.Error())
 	}
 }

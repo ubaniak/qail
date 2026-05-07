@@ -8,14 +8,14 @@ import (
 
 func TestNewExposesAllPaths(t *testing.T) {
 	h := New("/opt/qail")
-	if h.Root() != "/opt/qail" {
-		t.Fatalf("Root = %q", h.Root())
-	}
 	if h.DBPath() != "/opt/qail/qail.db" {
 		t.Fatalf("DBPath = %q", h.DBPath())
 	}
 	if h.ScriptsDir() != "/opt/qail/scripts" {
 		t.Fatalf("ScriptsDir = %q", h.ScriptsDir())
+	}
+	if h.LegacyJSONPath() != "/opt/qail/config.json" {
+		t.Fatalf("LegacyJSONPath = %q", h.LegacyJSONPath())
 	}
 }
 
@@ -28,15 +28,15 @@ func TestDefaultUsesQAIL_HOME(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Default: %v", err)
 	}
-	if h.Root() != override {
-		t.Fatalf("Root = %q, want %q", h.Root(), override)
-	}
-	// Root + ScriptsDir created on disk.
-	if _, err := os.Stat(h.Root()); err != nil {
-		t.Fatalf("Root not created: %v", err)
+	// Home root + ScriptsDir created on disk; verified via the accessors.
+	if _, err := os.Stat(filepath.Dir(h.DBPath())); err != nil {
+		t.Fatalf("home root not created: %v", err)
 	}
 	if _, err := os.Stat(h.ScriptsDir()); err != nil {
 		t.Fatalf("ScriptsDir not created: %v", err)
+	}
+	if h.DBPath() != filepath.Join(override, "qail.db") {
+		t.Fatalf("DBPath = %q", h.DBPath())
 	}
 }
 
@@ -49,8 +49,8 @@ func TestDefaultFallsBackToUserHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Default: %v", err)
 	}
-	want := filepath.Join(dir, ".qail")
-	if h.Root() != want {
-		t.Fatalf("Root = %q, want %q", h.Root(), want)
+	want := filepath.Join(dir, ".qail", "qail.db")
+	if h.DBPath() != want {
+		t.Fatalf("DBPath = %q, want %q", h.DBPath(), want)
 	}
 }

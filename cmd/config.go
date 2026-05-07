@@ -31,13 +31,11 @@ var (
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Run: func(cmd *cobra.Command, args []string) {
-			fn := func(cfg *config.Config) error {
-				forms.DisplayConfig(*cfg)
-				return nil
+			cfg, err := mustStore().Read()
+			if err != nil {
+				log.Fatalln(err)
 			}
-
-			HandleConfig(fn)
-
+			forms.DisplayConfig(cfg)
 		},
 	}
 	configEditorCmd = &cobra.Command{
@@ -66,17 +64,4 @@ var (
 
 func init() {
 	configCmd.AddCommand(configRootCmd, configEditorCmd, configLsCmd, configConvertCmd)
-}
-
-// HandleConfig runs fn against the loaded config and writes any mutation
-// back, logging fatally on error.
-//
-// Deprecated: prefer the actions package, which exposes one function per
-// user-facing operation backed by a config.Store. New cmd handlers should
-// not introduce HandleConfig calls.
-func HandleConfig(fn func(*config.Config) error) {
-	err := config.WithConfig(fn)
-	if err != nil {
-		log.Fatalln(err)
-	}
 }

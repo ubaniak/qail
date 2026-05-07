@@ -189,12 +189,16 @@ func EditWorkspace(n string, packages []string, allRepos map[string]string) (wor
 	}, nil
 }
 
-func RemoveWorkspace(ws *config.Workspace) error {
+// SelectWorkspaceToRemove prompts the user to pick a workspace and confirm
+// removal. Returns the selected name, whether the user confirmed, and any
+// prompt error. The caller performs the deletion (via actions or directly
+// against a Store); this function does not mutate the input map.
+func SelectWorkspaceToRemove(ws config.Workspace) (string, bool, error) {
 	var name string
 	s := huh.NewSelect[string]().Title("Choose a workspace").Value(&name)
 
 	var opts []huh.Option[string]
-	keys, fmt := formatWorkspaces(*ws)
+	keys, fmt := formatWorkspaces(ws)
 	for i := range keys {
 		opts = append(opts, huh.NewOption(fmt[i], keys[i]))
 	}
@@ -202,7 +206,7 @@ func RemoveWorkspace(ws *config.Workspace) error {
 
 	var confirm bool
 	c := huh.NewConfirm().
-		Title("This will remove the selected repos. Are you sure?").
+		Title("This will remove the selected workspace. Are you sure?").
 		Affirmative("Yes").
 		Negative("No").
 		Value(&confirm)
@@ -211,16 +215,10 @@ func RemoveWorkspace(ws *config.Workspace) error {
 		huh.NewGroup(s),
 		huh.NewGroup(c),
 	)
-	err := f.Run()
-	if err != nil {
-		return err
+	if err := f.Run(); err != nil {
+		return "", false, err
 	}
-	if !confirm {
-		return nil
-	}
-
-	delete(*ws, name)
-	return nil
+	return name, confirm, nil
 }
 
 func CleanWorkspace() (bool, error) {

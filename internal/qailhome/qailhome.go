@@ -4,10 +4,14 @@
 // on it instead of independently calling os.UserHomeDir + filepath.Join.
 //
 // Construction:
-//   - Default() reads $QAIL_HOME, falls back to ~/.qail, creates Root and
-//     ScriptsDir, and is the entry point for production code.
+//   - Default() reads $QAIL_HOME, falls back to ~/.qail, creates the home
+//     and ScriptsDir, and is the entry point for production code.
 //   - New(root) builds a Home pointing at an explicit root with no mkdirs;
 //     tests pass a t.TempDir().
+//
+// Path accessors are deliberately purpose-specific (DBPath, ScriptsDir,
+// LegacyJSONPath). Callers should not compute paths under the home root
+// themselves; add a new accessor here when a new well-known path appears.
 package qailhome
 
 import (
@@ -27,8 +31,8 @@ func New(root string) Home {
 }
 
 // Default returns the production Home. It reads $QAIL_HOME if set,
-// otherwise falls back to $HOME/.qail. Both Root() and ScriptsDir() are
-// created on disk if missing so that downstream callers (config.Store,
+// otherwise falls back to $HOME/.qail. Both the home root and ScriptsDir()
+// are created on disk if missing so that downstream callers (config.Store,
 // scripts.Scripts) can assume the layout exists.
 func Default() (Home, error) {
 	root, err := resolveRoot()
@@ -36,7 +40,7 @@ func Default() (Home, error) {
 		return Home{}, err
 	}
 	h := New(root)
-	if err := os.MkdirAll(h.Root(), 0755); err != nil {
+	if err := os.MkdirAll(h.root, 0755); err != nil {
 		return Home{}, err
 	}
 	if err := os.MkdirAll(h.ScriptsDir(), 0755); err != nil {
@@ -56,11 +60,12 @@ func resolveRoot() (string, error) {
 	return filepath.Join(h, ".qail"), nil
 }
 
-// Root returns the qail home directory.
-func (h Home) Root() string { return h.root }
-
 // DBPath returns the on-disk path of the SQLite config database.
 func (h Home) DBPath() string { return filepath.Join(h.root, "qail.db") }
 
 // ScriptsDir returns the directory holding user-managed bash scripts.
 func (h Home) ScriptsDir() string { return filepath.Join(h.root, "scripts") }
+
+// LegacyJSONPath returns the on-disk path of the pre-SQLite config.json,
+// used only by the one-shot `qail config convert` migration.
+func (h Home) LegacyJSONPath() string { return filepath.Join(h.root, "config.json") }

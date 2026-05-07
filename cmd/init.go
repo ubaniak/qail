@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ubaniak/qail/internal/config"
+	"github.com/ubaniak/qail/internal/actions"
 	"github.com/ubaniak/qail/internal/forms"
 )
 
@@ -15,27 +15,14 @@ var (
 		Use:   "init",
 		Short: "sets the root folder to the default path",
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := config.ReadFromFile()
-			if err != nil {
-				log.Fatalln(err)
-			}
-
 			r, err := forms.Init()
 			if err != nil {
 				log.Fatalln(err)
 			}
-
-			cfg.Root = r.Root
-			fmt.Printf("Setting root folder to %s\n", cfg.Root)
-
-			err = config.WriteToFile(cfg)
-			if err != nil {
+			fmt.Printf("Setting root folder to %s\n", r.Root)
+			if err := actions.SetRoot(mustStore(), r.Root); err != nil {
 				log.Fatalln(err)
 			}
 		},
 	}
 )
-
-func init() {
-	// initCmd.AddCommand(configRootCmd, configEditorCmd)
-}
