@@ -45,70 +45,32 @@ func (t *Tmux) SessionName(path string) string {
 	return filepath.Base(path)
 }
 
-func isEven(i int) bool {
-	return i%2 == 0
-}
-
-// Launch creates a tmux session rooted at folderPath and adds windows/panes
-// for each non-hidden subfolder. Even-indexed subfolders split the current
-// window horizontally; odd-indexed ones open a new window.
+// Launch creates a tmux session for the workspace at folderPath. Layout
+// policy lives in Plan; Launch only reads the filesystem, filters hidden /
+// non-directory entries, and dispatches the planned commands through Runner.
 func (t *Tmux) Launch(folderPath string) error {
-	if err := os.Chdir(folderPath); err != nil {
-		return fmt.Errorf("failed to change directory: %v", err)
-	}
-
 	sessionName := t.SessionName(folderPath)
-	if _, err := t.r.Run(context.Background(), runner.Command{
-		Name: "tmux",
-		Args: []string{"new-session", "-d", "-s", sessionName, "-c", folderPath, "-n", "root"},
-	}); err != nil {
-		return fmt.Errorf("failed to create tmux session: %v", err)
-	}
 
-	subFolders, err := os.ReadDir(folderPath)
+	entries, err := os.ReadDir(folderPath)
 	if err != nil {
 		return err
 	}
-	if len(subFolders) == 0 {
-		return nil
-	}
 
-	if _, err := t.r.Run(context.Background(), runner.Command{
-		Name: "tmux",
-		Args: []string{"new-window", "-t", sessionName, "-n", "SubFolders"},
-	}); err != nil {
-		return fmt.Errorf("failed to create new window: %v", err)
-	}
-
-	folderNumber := 0
-	windowIndex := 0
-
-	for _, subFolder := range subFolders {
-		if subFolder.IsDir() && strings.HasPrefix(subFolder.Name(), ".") {
+	var subfolders []string
+	for _, e := range entries {
+		if !e.IsDir() {
 			continue
 		}
-		if !subFolder.IsDir() {
+		if strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
-		subfolderPath := filepath.Join(folderPath, subFolder.Name())
+		subfolders = append(subfolders, e.Name())
+	}
 
-		if isEven(folderNumber) {
-			if _, err := t.r.Run(context.Background(), runner.Command{
-				Name: "tmux",
-				Args: []string{"split-window", "-t", fmt.Sprintf("%s:%d", sessionName, windowIndex), "-c", subfolderPath, "-h"},
-			}); err != nil {
-				return fmt.Errorf("failed to split window: %v", err)
-			}
-		} else {
-			windowIndex++
-			if _, err := t.r.Run(context.Background(), runner.Command{
-				Name: "tmux",
-				Args: []string{"new-window", "-t", sessionName, "-c", subfolderPath, "-n", "SubFolders" + fmt.Sprintf("%d", windowIndex)},
-			}); err != nil {
-				return fmt.Errorf("failed to create new window: %v", err)
-			}
+	for _, cmd := range Plan(sessionName, folderPath, subfolders) {
+		if _, err := t.r.Run(context.Background(), cmd); err != nil {
+			return fmt.Errorf("tmux %v: %w", cmd.Args, err)
 		}
-		folderNumber++
 	}
 	return nil
 }
