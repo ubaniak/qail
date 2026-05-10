@@ -1,7 +1,9 @@
 package actions
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/ubaniak/qail/internal/config"
@@ -11,55 +13,68 @@ import (
 // AddWorkspace creates a new workspace on disk (cloning each package and
 // running post-install scripts) and registers it in the config. If disk
 // creation fails the registry is not updated, matching the old
-// HandleConfig behaviour.
-func AddWorkspace(s config.Store, name string, packages []string) error {
+// HandleConfig behaviour. Progress is written to out (nil → os.Stdout).
+func AddWorkspace(ctx context.Context, s config.Store, name string, packages []string, out io.Writer) error {
 	if name == "" {
 		return fmt.Errorf("workspace name must not be empty")
 	}
+	storeMu.Lock()
 	cfg, err := s.Read()
+	storeMu.Unlock()
 	if err != nil {
 		return err
 	}
-	if err := buildAndCreate(cfg, name, packages); err != nil {
+	if err := buildAndCreate(ctx, cfg, name, packages, out); err != nil {
 		return err
 	}
-	if cfg.Workspaces == nil {
-		cfg.Workspaces = make(config.Workspace)
-	}
-	cfg.Workspaces[name] = config.NewWorkspaceProfile(packages, time.Now().UTC())
-	return s.Write(cfg)
+	return readWrite(s, func(c *config.Config) error {
+		if c.Workspaces == nil {
+			c.Workspaces = make(config.Workspace)
+		}
+		c.Workspaces[name] = config.NewWorkspaceProfile(packages, time.Now().UTC())
+		return nil
+	})
 }
 
 // EditWorkspace updates an existing workspace's package list, rebuilds it
 // on disk, and persists the change. Returns an error if the workspace is
 // not registered.
-func EditWorkspace(s config.Store, name string, packages []string) error {
+func EditWorkspace(ctx context.Context, s config.Store, name string, packages []string, out io.Writer) error {
+	storeMu.Lock()
 	cfg, err := s.Read()
+	storeMu.Unlock()
 	if err != nil {
 		return err
 	}
 	if _, ok := cfg.Workspaces[name]; !ok {
 		return fmt.Errorf("workspace %q not found", name)
 	}
-	if err := buildAndCreate(cfg, name, packages); err != nil {
+	if err := buildAndCreate(ctx, cfg, name, packages, out); err != nil {
 		return err
 	}
-	cfg.Workspaces[name] = config.NewWorkspaceProfile(packages, time.Now().UTC())
-	return s.Write(cfg)
+	return readWrite(s, func(c *config.Config) error {
+		if _, ok := c.Workspaces[name]; !ok {
+			return fmt.Errorf("workspace %q not found", name)
+		}
+		c.Workspaces[name] = config.NewWorkspaceProfile(packages, time.Now().UTC())
+		return nil
+	})
 }
 
 // CloneWorkspace registers dstName with the given packages and creates it
 // on disk. The caller is responsible for resolving the source workspace's
 // package list (typically via forms.CloneWorkspace).
-func CloneWorkspace(s config.Store, dstName string, packages []string) error {
-	return AddWorkspace(s, dstName, packages)
+func CloneWorkspace(ctx context.Context, s config.Store, dstName string, packages []string, out io.Writer) error {
+	return AddWorkspace(ctx, s, dstName, packages, out)
 }
 
 // CreateWorkspaceOnDisk (re)materialises an already-registered workspace
 // directory without touching the registry. Used by `qail ws create` when
 // the user wants to rebuild a workspace from scratch.
-func CreateWorkspaceOnDisk(s config.Store, name string) error {
+func CreateWorkspaceOnDisk(ctx context.Context, s config.Store, name string, out io.Writer) error {
+	storeMu.Lock()
 	cfg, err := s.Read()
+	storeMu.Unlock()
 	if err != nil {
 		return err
 	}
@@ -67,7 +82,7 @@ func CreateWorkspaceOnDisk(s config.Store, name string) error {
 	if !ok {
 		return fmt.Errorf("workspace %q not found", name)
 	}
-	return buildAndCreate(cfg, name, profile.Repos)
+	return buildAndCreate(ctx, cfg, name, profile.Repos, out)
 }
 
 // RemoveWorkspace deletes a workspace from the registry and strips the
@@ -156,10 +171,17 @@ func ReadWorkspaceContext(s config.Store) (WorkspaceContext, error) {
 // buildAndCreate is the shared "build a Workspace and Create() it"
 // helper. Lives here so AddWorkspace, EditWorkspace, and
 // CreateWorkspaceOnDisk all wire packages and post-install scripts the
-// same way.
-func buildAndCreate(cfg config.Config, name string, packages []string) error {
-	ws := workspace.NewDefault(cfg.Root, name, packages, cfg.Repos)
+// same way. When out is non-nil it goes through workspace.NewStreaming
+// (no huh spinner) so HTTP/SSE callers see plain progress lines; when
+// out is nil the spinner-driven default is used.
+func buildAndCreate(ctx context.Context, cfg config.Config, name string, packages []string, out io.Writer) error {
+	var ws workspace.Workspace
+	if out == nil {
+		ws = workspace.NewDefault(cfg.Root, name, packages, cfg.Repos)
+	} else {
+		ws = workspace.NewStreaming(cfg.Root, name, packages, cfg.Repos)
+	}
 	ws.WithRepoPostInstallScripts(cfg.PostInstallScripts.Repo)
 	ws.WithWSPostInstallScripts(cfg.PostInstallScripts.Workspace)
-	return ws.Create()
+	return ws.Create(ctx, out)
 }

@@ -1,7 +1,9 @@
 package workspace
 
 import (
+	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"testing"
@@ -24,7 +26,7 @@ type postCall struct {
 	scripts []string
 }
 
-func (f *fakeInstaller) Install(spec installer.PackageSpec) error {
+func (f *fakeInstaller) Install(_ context.Context, spec installer.PackageSpec, _ io.Writer) error {
 	if f.failOnIndex >= 0 && len(f.specs) == f.failOnIndex {
 		f.specs = append(f.specs, spec)
 		return errors.New("boom")
@@ -33,7 +35,7 @@ func (f *fakeInstaller) Install(spec installer.PackageSpec) error {
 	return nil
 }
 
-func (f *fakeInstaller) RunPostInstall(dir string, scripts []string) error {
+func (f *fakeInstaller) RunPostInstall(_ context.Context, dir string, scripts []string, _ io.Writer) error {
 	if dir == f.failOnDir {
 		return errors.New("boom-post")
 	}
@@ -111,7 +113,7 @@ func TestCreateInvokesInstallerForEachPackage(t *testing.T) {
 		inst,
 		fsys,
 	)
-	if err := w.Create(); err != nil {
+	if err := w.Create(context.Background(), io.Discard); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 	if got := len(inst.specs); got != 2 {
@@ -136,7 +138,7 @@ func TestCreateRollsBackWorkspaceDirOnFailure(t *testing.T) {
 		inst,
 		fsys,
 	)
-	err := w.Create()
+	err := w.Create(context.Background(), io.Discard)
 	if err == nil {
 		t.Fatal("Create: want error, got nil")
 	}
@@ -174,7 +176,7 @@ func TestCleanIgnoresTrackedWorkspaces(t *testing.T) {
 	ws := buildTrackedWorkspace("tracked")
 
 	confirm := func(string) (bool, error) { return true, nil }
-	if err := cleanWithDeps(fsys, confirm, "/qroot", ws); err != nil {
+	if err := cleanWithDeps(fsys, confirm, "/qroot", ws, io.Discard); err != nil {
 		t.Fatalf("clean: %v", err)
 	}
 	if len(fsys.removed) != 1 || fsys.removed[0] != "/qroot/orphan" {
@@ -188,7 +190,7 @@ func TestCleanRespectsConfirmFalse(t *testing.T) {
 		memEntry{name: "orphan", dir: true},
 	}
 	confirm := func(string) (bool, error) { return false, nil }
-	if err := cleanWithDeps(fsys, confirm, "/qroot", buildTrackedWorkspace()); err != nil {
+	if err := cleanWithDeps(fsys, confirm, "/qroot", buildTrackedWorkspace(), io.Discard); err != nil {
 		t.Fatalf("clean: %v", err)
 	}
 	if len(fsys.removed) != 0 {

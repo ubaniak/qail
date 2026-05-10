@@ -1,6 +1,7 @@
 package tmux
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ubaniak/qail/internal/runner"
@@ -10,7 +11,11 @@ func TestSessionExistsParsesExitCode(t *testing.T) {
 	rec := runner.NewRecorder().Respond(runner.Result{ExitCode: 0}, nil)
 	tx := New(rec)
 
-	if !tx.SessionExists("work") {
+	exists, err := tx.SessionExists(context.Background(), "work")
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if !exists {
 		t.Fatalf("expected SessionExists=true on exit 0")
 	}
 	if len(rec.Calls) != 1 {
@@ -32,7 +37,7 @@ func TestListSessionsParsesNewlineFormat(t *testing.T) {
 	rec := runner.NewRecorder().RespondOK([]byte("alpha\nbeta\ngamma\n"))
 	tx := New(rec)
 
-	got, err := tx.ListSessions()
+	got, err := tx.ListSessions(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -51,7 +56,7 @@ func TestRemoveSessionInvokesKill(t *testing.T) {
 	rec := runner.NewRecorder().Respond(runner.Result{ExitCode: 0}, nil)
 	tx := New(rec)
 
-	if err := tx.RemoveSession("dead"); err != nil {
+	if err := tx.RemoveSession(context.Background(), "dead"); err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
 	got := rec.LastCall()

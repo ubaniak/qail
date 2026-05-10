@@ -16,7 +16,10 @@ func DisplayTmuxSessions(sessions []string) {
 	displayTable(headers, rows)
 }
 
-func RemoveTmuxSession(sessions []string) (string, bool, error) {
+// SelectTmuxSession prompts the user to pick a tmux session and returns
+// the chosen name. Pure selector — confirmation is the caller's job
+// (chain with forms.Confirm).
+func SelectTmuxSession(sessions []string) (string, error) {
 	var name string
 	s := huh.NewSelect[string]().Title("Choose a session").Value(&name)
 
@@ -26,17 +29,9 @@ func RemoveTmuxSession(sessions []string) (string, bool, error) {
 	}
 	s.Options(opts...)
 
-	var confirm bool
-	c := huh.NewConfirm().
-		Title("This will remove the selected session. Are you sure?").
-		Affirmative("Yes").
-		Negative("No").
-		Value(&confirm)
-
-	f := huh.NewForm(
-		huh.NewGroup(s),
-		huh.NewGroup(c),
-	)
-	err := f.Run()
-	return name, confirm, err
+	f := huh.NewForm(huh.NewGroup(s))
+	if err := f.Run(); err != nil {
+		return "", err
+	}
+	return name, nil
 }

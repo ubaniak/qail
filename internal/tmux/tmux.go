@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/ubaniak/qail/internal/runner"
@@ -45,10 +46,11 @@ func (t *Tmux) SessionName(path string) string {
 	return filepath.Base(path)
 }
 
-// Launch creates a tmux session for the workspace at folderPath. Layout
-// policy lives in Plan; Launch only reads the filesystem, filters hidden /
-// non-directory entries, and dispatches the planned commands through Runner.
-func (t *Tmux) Launch(folderPath string) error {
+// Launch creates a tmux session for the workspace at folderPath under ctx.
+// Layout policy lives in Plan; Launch only reads the filesystem, filters
+// hidden / non-directory entries, and dispatches the planned commands
+// through Runner.
+func (t *Tmux) Launch(ctx context.Context, folderPath string) error {
 	sessionName := t.SessionName(folderPath)
 
 	entries, err := os.ReadDir(folderPath)
@@ -68,7 +70,7 @@ func (t *Tmux) Launch(folderPath string) error {
 	}
 
 	for _, cmd := range Plan(sessionName, folderPath, subfolders) {
-		if _, err := t.r.Run(context.Background(), cmd); err != nil {
+		if _, err := t.r.Run(ctx, cmd); err != nil {
 			return fmt.Errorf("tmux %v: %w", cmd.Args, err)
 		}
 	}
@@ -76,39 +78,41 @@ func (t *Tmux) Launch(folderPath string) error {
 }
 
 // SessionExists reports whether a tmux session of the given name is live.
-func (t *Tmux) SessionExists(sessionName string) bool {
-	_, err := t.r.Run(context.Background(), runner.Command{
+// Returns (false, nil) when tmux is reachable and the session is absent;
+// (false, err) when the tmux binary itself is unreachable. Splitting the
+// two lets callers distinguish "no such session" from "tmux is broken".
+func (t *Tmux) SessionExists(ctx context.Context, sessionName string) (bool, error) {
+	_, err := t.r.Run(ctx, runner.Command{
 		Name: "tmux",
 		Args: []string{"has-session", "-t", sessionName},
 	})
 	if err == nil {
-		return true
+		return true, nil
 	}
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
-		return false
+		return false, nil
 	}
-	// Other errors (binary missing etc.) — log and treat as absent.
-	fmt.Printf("Error checking tmux session: %v\n", err)
-	return false
+	return false, err
 }
 
-// IsInstalled returns (nil, true) if `tmux -V` succeeds.
-func (t *Tmux) IsInstalled() (error, bool) {
-	res, err := t.r.Run(context.Background(), runner.Command{
+// IsInstalled returns (nil, true) if `tmux -V` succeeds. The tmux version
+// string is discarded; CLI callers that want it should call `tmux -V`
+// themselves.
+func (t *Tmux) IsInstalled(ctx context.Context) (error, bool) {
+	_, err := t.r.Run(ctx, runner.Command{
 		Name: "tmux",
 		Args: []string{"-V"},
 	})
 	if err != nil {
 		return err, false
 	}
-	fmt.Printf("tmux version: %s\n", res.Stdout)
 	return nil, true
 }
 
 // ListSessions returns live tmux session names.
-func (t *Tmux) ListSessions() ([]string, error) {
-	res, err := t.r.Run(context.Background(), runner.Command{
+func (t *Tmux) ListSessions(ctx context.Context) ([]string, error) {
+	res, err := t.r.Run(ctx, runner.Command{
 		Name: "tmux",
 		Args: []string{"list-sessions", "-F", "#S"},
 	})
@@ -119,9 +123,21 @@ func (t *Tmux) ListSessions() ([]string, error) {
 	return sessions, nil
 }
 
+// HasSession reports whether the named session appears in `tmux
+// list-sessions`. Used by cmd handlers to fail fast on a typo before
+// prompting for confirmation; concentrates the list+contains check so
+// callers don't roll their own.
+func (t *Tmux) HasSession(ctx context.Context, name string) (bool, error) {
+	all, err := t.ListSessions(ctx)
+	if err != nil {
+		return false, err
+	}
+	return slices.Contains(all, name), nil
+}
+
 // RemoveSession kills the named tmux session.
-func (t *Tmux) RemoveSession(session string) error {
-	res, err := t.r.Run(context.Background(), runner.Command{
+func (t *Tmux) RemoveSession(ctx context.Context, session string) error {
+	res, err := t.r.Run(ctx, runner.Command{
 		Name: "tmux",
 		Args: []string{"kill-session", "-t", session},
 	})

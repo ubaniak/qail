@@ -1,6 +1,7 @@
 package tmux
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,7 +63,7 @@ func TestLaunchCreatesSessionWithSubfolders(t *testing.T) {
 	}
 	tx := New(rec)
 
-	if err := tx.Launch(dir); err != nil {
+	if err := tx.Launch(context.Background(), dir); err != nil {
 		t.Fatalf("Launch: %v", err)
 	}
 	if len(rec.Calls) == 0 {

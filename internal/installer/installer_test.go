@@ -1,7 +1,9 @@
 package installer
 
 import (
+	"context"
 	"errors"
+	"io"
 	"testing"
 )
 
@@ -11,7 +13,7 @@ type fakeGit struct {
 	called bool
 }
 
-func (f *fakeGit) CloneWithProgress(repo, path, _ string) error {
+func (f *fakeGit) Clone(_ context.Context, repo, path, _ string, _ io.Writer) error {
 	f.called = true
 	f.calls = append(f.calls, "clone "+repo+" "+path)
 	return f.err
@@ -22,7 +24,7 @@ type fakeScripts struct {
 	err   error
 }
 
-func (f *fakeScripts) RunBashScript(script, dir string) error {
+func (f *fakeScripts) RunBashScript(_ context.Context, script, dir string, _ io.Writer) error {
 	f.calls = append(f.calls, "script "+script+" "+dir)
 	return f.err
 }
@@ -32,12 +34,12 @@ func TestInstallClonesThenRunsScripts(t *testing.T) {
 	s := &fakeScripts{}
 	i := New(g, s)
 
-	err := i.Install(PackageSpec{
+	err := i.Install(context.Background(), PackageSpec{
 		Name:        "svc-a",
 		RepoURL:     "git@example.com:foo/svc-a.git",
 		Dest:        "/work/svc-a",
 		PostInstall: []string{"bootstrap.sh"},
-	})
+	}, io.Discard)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -62,12 +64,12 @@ func TestInstallAbortsOnCloneFailure(t *testing.T) {
 	s := &fakeScripts{}
 	i := New(g, s)
 
-	err := i.Install(PackageSpec{
+	err := i.Install(context.Background(), PackageSpec{
 		Name:        "svc-a",
 		RepoURL:     "git@example.com:foo/svc-a.git",
 		Dest:        "/work/svc-a",
 		PostInstall: []string{"bootstrap.sh"},
-	})
+	}, io.Discard)
 	if err == nil {
 		t.Fatalf("expected error from failed clone")
 	}
@@ -81,11 +83,11 @@ func TestInstallSkipsCloneWhenRepoURLEmpty(t *testing.T) {
 	s := &fakeScripts{}
 	i := New(g, s)
 
-	err := i.Install(PackageSpec{
+	err := i.Install(context.Background(), PackageSpec{
 		Name:        "svc-a",
 		Dest:        "/work/svc-a",
 		PostInstall: []string{"bootstrap.sh"},
-	})
+	}, io.Discard)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}

@@ -1,26 +1,18 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
-	"slices"
+	"os"
 
+	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
 
+	"github.com/ubaniak/qail/internal/color"
 	"github.com/ubaniak/qail/internal/forms"
 	"github.com/ubaniak/qail/internal/scripts"
 )
-
-// scriptExists reports whether name appears in the scripts dir. Used by
-// non-interactive paths so a typo fails loudly before we touch the
-// filesystem.
-func scriptExists(sc *scripts.Scripts, name string) (bool, error) {
-	all, err := sc.ListScripts()
-	if err != nil {
-		return false, err
-	}
-	return slices.Contains(all, name), nil
-}
 
 var (
 	scriptsCmd = &cobra.Command{
@@ -31,9 +23,12 @@ var (
 	cdScriptCmd = &cobra.Command{
 		Use: "cd",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := scripts.Default().Cd(); err != nil {
+			cdCmd, err := scripts.Default().CdCommand()
+			if err != nil {
 				log.Fatalln(err)
 			}
+			fmt.Printf("%s copied %s to clipboard\n\n", color.Yellow(">>>"), color.Green(cdCmd))
+			clipboard.WriteAll(cdCmd)
 		},
 	}
 	addScriptCmd = &cobra.Command{
@@ -80,14 +75,14 @@ var (
 			sc := scripts.Default()
 
 			if name := firstArg(args); name != "" {
-				ok, err := scriptExists(sc, name)
+				ok, err := sc.Has(name)
 				if err != nil {
 					log.Fatalln(err)
 				}
 				if !ok {
 					log.Fatalf("script %q not found\n", name)
 				}
-				if err := sc.Open(cfg.Editor, name); err != nil {
+				if err := sc.Open(context.Background(), cfg.Editor, name); err != nil {
 					log.Fatalln(err)
 				}
 				return
@@ -104,7 +99,7 @@ var (
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if err := sc.Open(cfg.Editor, script); err != nil {
+			if err := sc.Open(context.Background(), cfg.Editor, script); err != nil {
 				log.Fatalln(err)
 			}
 		},
@@ -117,25 +112,20 @@ var (
 			sc := scripts.Default()
 
 			if name := firstArg(args); name != "" {
-				ok, err := scriptExists(sc, name)
+				ok, err := sc.Has(name)
 				if err != nil {
 					log.Fatalln(err)
 				}
 				if !ok {
 					log.Fatalf("script %q not found\n", name)
 				}
-				if !flagYes {
-					if err := requireTTY("--yes for non-interactive remove"); err != nil {
-						log.Fatalln(err)
-					}
-					confirm, err := forms.Confirm(fmt.Sprintf("Remove script %q?", name))
-					if err != nil {
-						log.Fatalln(err)
-					}
-					if !confirm {
-						fmt.Println("Aborting")
-						return
-					}
+				confirmed, err := confirmOrSkip(fmt.Sprintf("Remove script %q?", name), "--yes for non-interactive remove")
+				if err != nil {
+					log.Fatalln(err)
+				}
+				if !confirmed {
+					fmt.Fprintln(os.Stdout, "Aborting")
+					return
 				}
 				fmt.Printf("Removing %s\n", name)
 				if err := sc.RemoveScript(name); err != nil {

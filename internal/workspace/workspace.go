@@ -3,17 +3,14 @@ package workspace
 import (
 	"context"
 	"fmt"
-	"log"
+	"io"
 	"os"
 	"path"
-
-	"github.com/atotto/clipboard"
 
 	"github.com/ubaniak/qail/internal/color"
 	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/forms"
 	"github.com/ubaniak/qail/internal/installer"
-	"github.com/ubaniak/qail/internal/runner"
 	"github.com/ubaniak/qail/internal/tmux"
 )
 
@@ -22,8 +19,8 @@ import (
 // interface lives here (the consumer) so workspace tests can substitute a
 // fake without importing the production installer.
 type Installer interface {
-	Install(spec installer.PackageSpec) error
-	RunPostInstall(dir string, scripts []string) error
+	Install(ctx context.Context, spec installer.PackageSpec, w io.Writer) error
+	RunPostInstall(ctx context.Context, dir string, scripts []string, w io.Writer) error
 }
 
 type Workspace struct {
@@ -59,6 +56,13 @@ func NewDefault(root, name string, packages []string, repos map[string]string) W
 	return New(root, name, packages, repos, installer.Default(), OSFS{})
 }
 
+// NewStreaming is NewDefault for non-TTY callers — uses installer.NewStreaming
+// so progress lines flow through whichever io.Writer the caller hands to
+// Create instead of being trapped under a huh spinner.
+func NewStreaming(root, name string, packages []string, repos map[string]string) Workspace {
+	return New(root, name, packages, repos, installer.NewStreaming(), OSFS{})
+}
+
 func (w *Workspace) WithRepoPostInstallScripts(p map[string][]string) *Workspace {
 	w.RepoPostInstall = p
 	return w
@@ -69,7 +73,14 @@ func (w *Workspace) WithWSPostInstallScripts(p map[string][]string) *Workspace {
 	return w
 }
 
-func (w Workspace) Create() error {
+// Create materialises the workspace on disk: mkdir root + name (if needed),
+// install each package, run workspace-level post-install scripts. Progress
+// is written to out (defaulting to os.Stdout when nil). On failure the
+// freshly-created workspace dir is removed so callers can safely retry.
+func (w Workspace) Create(ctx context.Context, out io.Writer) error {
+	if out == nil {
+		out = os.Stdout
+	}
 	if _, err := w.fs.Stat(w.Root); os.IsNotExist(err) {
 		if err := w.fs.Mkdir(w.Root, 0755); err != nil {
 			return fmt.Errorf("failed to create root directory: %v", err)
@@ -86,7 +97,7 @@ func (w Workspace) Create() error {
 		wsCreated = true
 	}
 
-	if err := w.populate(wsPath); err != nil {
+	if err := w.populate(ctx, wsPath, out); err != nil {
 		if wsCreated {
 			w.fs.RemoveAll(wsPath)
 		}
@@ -95,41 +106,39 @@ func (w Workspace) Create() error {
 	return nil
 }
 
-func (w Workspace) populate(wsPath string) error {
-	fmt.Printf("Creating workspace %s ...\n", color.Cyan(wsPath))
+func (w Workspace) populate(ctx context.Context, wsPath string, out io.Writer) error {
+	fmt.Fprintf(out, "Creating workspace %s ...\n", color.Cyan(wsPath))
 
 	for _, p := range w.Packages {
-		fmt.Printf("* Adding package %s ...\n", color.Cyan(p))
+		fmt.Fprintf(out, "* Adding package %s ...\n", color.Cyan(p))
 		spec := installer.PackageSpec{
 			Name:        p,
 			RepoURL:     w.Repos[p],
 			Dest:        path.Join(wsPath, p),
 			PostInstall: w.RepoPostInstall[p],
 		}
-		if err := w.inst.Install(spec); err != nil {
+		if err := w.inst.Install(ctx, spec, out); err != nil {
 			return err
 		}
-		fmt.Println()
+		fmt.Fprintln(out)
 	}
 
 	if wsScripts, ok := w.WSPostInstall[w.Name]; ok {
 		if len(wsScripts) > 0 {
-			fmt.Printf("Running post install scripts for %s: %s \n", color.Green("workspace"), color.Cyan(w.Name))
+			fmt.Fprintf(out, "Running post install scripts for %s: %s \n", color.Green("workspace"), color.Cyan(w.Name))
 		}
-		if err := w.inst.RunPostInstall(wsPath, wsScripts); err != nil {
+		if err := w.inst.RunPostInstall(ctx, wsPath, wsScripts, out); err != nil {
 			return err
 		}
 	}
 
-	fmt.Println(color.Green("Done :)"))
+	fmt.Fprintln(out, color.Green("Done :)"))
 
 	return nil
 }
 
 func (w Workspace) Remove() error {
 	wsPath := path.Join(w.Root, w.Name)
-
-	fmt.Printf("removing %s", wsPath)
 	return w.fs.RemoveAll(wsPath)
 }
 
@@ -139,57 +148,23 @@ func (w Workspace) RemoveRepo(repo string) error {
 	return w.fs.RemoveAll(wsPath)
 }
 
-// defaultRunner returns the production Runner used by free functions in this
-// package. Methods on Workspace will gain explicit injection in a later pass.
-func defaultRunner() *runner.OS { return runner.NewOS() }
-
-// Open launches the configured editor against the workspace path, inheriting
-// stdio so editors like vim/nvim can take over the terminal.
-func Open(editor, workspace string) {
-	if editor == "" {
-		log.Fatalln("No editor selected ... ")
-	}
-
-	defaultRunner().Run(context.Background(), runner.Command{
-		Name:   editor,
-		Args:   []string{workspace},
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-	})
-}
-
-// Explore opens the workspace in the macOS Finder via `open`.
-func Explore(ws string) (string, error) {
-	res, err := defaultRunner().Run(context.Background(), runner.Command{
-		Name: "open",
-		Args: []string{ws},
-	})
-	return string(res.Stdout), err
-}
-
-// Cd copies a `cd <ws>` command to the clipboard so the user can paste it
-// into a real shell. The qail process cannot change the parent shell's
-// directory directly.
-func Cd(ws string) {
-	cmd := fmt.Sprintf("cd %s", ws)
-	fmt.Printf("%s copied %s to clipboard\n\n", color.Yellow(">>>"), color.Green(cmd))
-	clipboard.WriteAll(cmd)
-}
-
-// Tmux ensures a tmux session exists for the workspace at ws, then returns
-// the shell command the user must paste to attach. The qail process cannot
-// attach itself; the caller decides whether to copy the command to the
-// clipboard or display it.
-func Tmux(ws string) (string, error) {
+// Tmux ensures a tmux session exists for the workspace at ws under ctx,
+// then returns the shell command the user must paste to attach. The qail
+// process cannot attach itself; the caller decides whether to copy the
+// command to the clipboard or display it.
+func Tmux(ctx context.Context, ws string) (string, error) {
 	t := tmux.Default()
-	err, _ := t.IsInstalled()
+	err, _ := t.IsInstalled(ctx)
 	if err != nil {
 		return "", err
 	}
 	sessionName := t.SessionName(ws)
-	if !t.SessionExists(sessionName) {
-		if err := t.Launch(ws); err != nil {
+	exists, err := t.SessionExists(ctx, sessionName)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		if err := t.Launch(ctx, ws); err != nil {
 			return "", err
 		}
 	}
@@ -199,26 +174,30 @@ func Tmux(ws string) (string, error) {
 // Clean lists root, identifies subdirectories not tracked in ws, prompts
 // the user, then deletes the orphans. Production callers go through Clean;
 // tests substitute fs and confirm via cleanWithDeps.
-func Clean(root string, ws config.Workspace) error {
-	return cleanWithDeps(OSFS{}, forms.Confirm, root, ws)
+func Clean(root string, ws config.Workspace, out io.Writer) error {
+	return cleanWithDeps(OSFS{}, forms.Confirm, root, ws, out)
 }
 
-// cleanWithDeps is the testable shape: pass a FS adapter and a confirm
-// function. Production wires OSFS + forms.Confirm; tests wire fakes.
-func cleanWithDeps(fs FS, confirm func(string) (bool, error), root string, ws config.Workspace) error {
+// cleanWithDeps is the testable shape: pass a FS adapter, confirm function,
+// and writer. Production wires OSFS + forms.Confirm + os.Stdout; tests
+// wire fakes.
+func cleanWithDeps(fs FS, confirm func(string) (bool, error), root string, ws config.Workspace, out io.Writer) error {
+	if out == nil {
+		out = os.Stdout
+	}
 	files, err := fs.ReadDir(root)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Reading ...", color.Cyan(root))
+	fmt.Fprintln(out, "Reading ...", color.Cyan(root))
 
 	var toDelete []string
 	for _, file := range files {
 		if !file.IsDir() {
 			continue
 		}
-		fmt.Println("Folder name", color.Cyan(file.Name()))
+		fmt.Fprintln(out, "Folder name", color.Cyan(file.Name()))
 		if _, ok := ws[file.Name()]; !ok {
 			toDelete = append(toDelete, file.Name())
 		}
@@ -228,9 +207,9 @@ func cleanWithDeps(fs FS, confirm func(string) (bool, error), root string, ws co
 		return nil
 	}
 
-	fmt.Printf("%s The following directories are not tracked and will be deleted:\n", color.Yellow(">>>"))
+	fmt.Fprintf(out, "%s The following directories are not tracked and will be deleted:\n", color.Yellow(">>>"))
 	for _, name := range toDelete {
-		fmt.Printf("   * %s\n", color.Cyan(name))
+		fmt.Fprintf(out, "   * %s\n", color.Cyan(name))
 	}
 
 	confirmed, err := confirm("Delete these directories?")
@@ -238,12 +217,12 @@ func cleanWithDeps(fs FS, confirm func(string) (bool, error), root string, ws co
 		return err
 	}
 	if !confirmed {
-		fmt.Println("Aborted.")
+		fmt.Fprintln(out, "Aborted.")
 		return nil
 	}
 
 	for _, name := range toDelete {
-		fmt.Printf("%s Deleting: %s\n", color.Yellow(">>>"), color.Cyan(name))
+		fmt.Fprintf(out, "%s Deleting: %s\n", color.Yellow(">>>"), color.Cyan(name))
 		if err := fs.RemoveAll(path.Join(root, name)); err != nil {
 			return err
 		}

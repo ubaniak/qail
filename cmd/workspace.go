@@ -1,10 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
-	"path"
 
 	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
@@ -13,52 +13,43 @@ import (
 	"github.com/ubaniak/qail/internal/color"
 	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/forms"
+	"github.com/ubaniak/qail/internal/runner"
 	"github.com/ubaniak/qail/internal/scripts"
 	"github.com/ubaniak/qail/internal/workspace"
 )
 
 // flag-backed inputs for non-interactive workspace commands.
 var (
-	wsAddRepos    []string
-	wsEditRepos   []string
-	wsCloneRepos  []string
-	wsPIScripts   []string
-	wsPIClear     bool
+	wsAddRepos   []string
+	wsEditRepos  []string
+	wsCloneRepos []string
+	wsPIScripts  []string
+	wsPIClear    bool
 )
 
-// resolveWorkspaceName returns a workspace name + its on-disk path.
-// If `name` is non-empty it is validated against the registry; otherwise
-// a TUI selector runs (unless --no-tty, which becomes a hard error).
-func resolveWorkspaceName(s config.Store, name string) (string, string, []string, error) {
+// resolveWorkspaceName returns a workspace name. Validates against the
+// registry when `name` is set; otherwise opens the interactive picker
+// (--no-tty turns the missing input into a hard error). Disk-existence and
+// LastUsed touch happen inside the matching action, not here.
+func resolveWorkspaceName(s config.Store, name string) (string, error) {
 	ctx, err := actions.ReadWorkspaceContext(s)
 	if err != nil {
-		return "", "", nil, err
+		return "", err
 	}
-
 	if name != "" {
-		profile, ok := ctx.Workspaces[name]
-		if !ok {
-			return "", "", nil, fmt.Errorf("workspace %q not found", name)
+		if _, ok := ctx.Workspaces[name]; !ok {
+			return "", fmt.Errorf("workspace %q not found", name)
 		}
-		wsPath := path.Join(ctx.Root, name)
-		if _, err := os.Stat(wsPath); os.IsNotExist(err) {
-			return "", "", nil, fmt.Errorf("workspace %q does not exist on disk. Please run qail ws create", wsPath)
-		}
-		return name, wsPath, profile.Repos, nil
+		return name, nil
 	}
-
 	if err := requireTTY("workspace name"); err != nil {
-		return "", "", nil, err
+		return "", err
 	}
 	r, err := forms.FindWorkspace(ctx.Workspaces)
 	if err != nil {
-		return "", "", nil, err
+		return "", err
 	}
-	wsPath := path.Join(ctx.Root, r.Name)
-	if _, err := os.Stat(wsPath); os.IsNotExist(err) {
-		return "", "", nil, fmt.Errorf("workspace %q does not exist. Please run qail ws create", wsPath)
-	}
-	return r.Name, wsPath, r.Packages, nil
+	return r.Name, nil
 }
 
 // firstArg returns args[0] when present, "" otherwise.
@@ -81,12 +72,13 @@ var (
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
-			name, wsPath, _, err := resolveWorkspaceName(s, firstArg(args))
+			name, err := resolveWorkspaceName(s, firstArg(args))
 			if err != nil {
 				log.Fatalln(err)
 			}
-			_ = name
-			workspace.Explore(wsPath)
+			if err := actions.ExploreWorkspace(context.Background(), s, runner.NewOS(), name); err != nil {
+				log.Fatalln(err)
+			}
 		},
 	}
 	openWsCmd = &cobra.Command{
@@ -95,18 +87,13 @@ var (
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
-			name, wsPath, _, err := resolveWorkspaceName(s, firstArg(args))
+			name, err := resolveWorkspaceName(s, firstArg(args))
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if _, err := actions.TouchWorkspace(s, name); err != nil {
+			if err := actions.OpenWorkspace(context.Background(), s, runner.NewOS(), name); err != nil {
 				log.Fatalln(err)
 			}
-			ctx, err := actions.ReadWorkspaceContext(s)
-			if err != nil {
-				log.Fatalln(err)
-			}
-			workspace.Open(ctx.Editor, wsPath)
 		},
 	}
 	cdWsCmd = &cobra.Command{
@@ -114,14 +101,17 @@ var (
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
-			name, wsPath, _, err := resolveWorkspaceName(s, firstArg(args))
+			name, err := resolveWorkspaceName(s, firstArg(args))
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if _, err := actions.TouchWorkspace(s, name); err != nil {
+			wsPath, err := actions.CdWorkspace(s, name)
+			if err != nil {
 				log.Fatalln(err)
 			}
-			workspace.Cd(wsPath)
+			cdCmd := fmt.Sprintf("cd %s", wsPath)
+			fmt.Printf("%s copied %s to clipboard\n\n", color.Yellow(">>>"), color.Green(cdCmd))
+			clipboard.WriteAll(cdCmd)
 		},
 	}
 	tmuxWsCmd = &cobra.Command{
@@ -130,14 +120,11 @@ var (
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			s := mustStore()
-			name, wsPath, _, err := resolveWorkspaceName(s, firstArg(args))
+			name, err := resolveWorkspaceName(s, firstArg(args))
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if _, err := actions.TouchWorkspace(s, name); err != nil {
-				log.Fatalln(err)
-			}
-			attachCmd, err := workspace.Tmux(wsPath)
+			attachCmd, err := actions.MuxWorkspace(context.Background(), s, name)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -161,17 +148,12 @@ var (
 				if _, ok := ctx.Workspaces[name]; !ok {
 					log.Fatalf("workspace %q not found\n", name)
 				}
-				if !flagYes {
-					if err := requireTTY("--yes for non-interactive remove"); err != nil {
-						log.Fatalln(err)
-					}
-					ok, err := forms.Confirm(fmt.Sprintf("Remove workspace %q?", name))
-					if err != nil {
-						log.Fatalln(err)
-					}
-					if !ok {
-						return
-					}
+				ok, err := confirmOrSkip(fmt.Sprintf("Remove workspace %q?", name), "--yes for non-interactive remove")
+				if err != nil {
+					log.Fatalln(err)
+				}
+				if !ok {
+					return
 				}
 				if err := actions.RemoveWorkspace(s, name); err != nil {
 					log.Fatalln(err)
@@ -186,7 +168,11 @@ var (
 			if err != nil {
 				log.Fatalln(err)
 			}
-			name, confirmed, err := forms.SelectWorkspaceToRemove(ctx.Workspaces)
+			name, err := forms.SelectWorkspaceName(ctx.Workspaces)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			confirmed, err := forms.Confirm(fmt.Sprintf("Remove workspace %q?", name))
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -225,7 +211,7 @@ var (
 				if _, ok := ctx.Workspaces[name]; !ok {
 					log.Fatalf("workspace %q not found in registry; use `ws add` first\n", name)
 				}
-				if err := actions.CreateWorkspaceOnDisk(s, name); err != nil {
+				if err := actions.CreateWorkspaceOnDisk(context.Background(), s, name, nil); err != nil {
 					log.Fatalln(err)
 				}
 				return
@@ -242,7 +228,7 @@ var (
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if err := actions.CreateWorkspaceOnDisk(s, r.Name); err != nil {
+			if err := actions.CreateWorkspaceOnDisk(context.Background(), s, r.Name, nil); err != nil {
 				log.Fatalln(err)
 			}
 		},
@@ -272,7 +258,7 @@ var (
 				if len(wsCloneRepos) > 0 {
 					pkgs = wsCloneRepos
 				}
-				if err := actions.CloneWorkspace(s, dst, pkgs); err != nil {
+				if err := actions.CloneWorkspace(context.Background(), s, dst, pkgs, nil); err != nil {
 					log.Fatalln(err)
 				}
 				return
@@ -293,7 +279,7 @@ var (
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if err := actions.CloneWorkspace(s, c.Name, c.Packages); err != nil {
+			if err := actions.CloneWorkspace(context.Background(), s, c.Name, c.Packages, nil); err != nil {
 				log.Fatalln(err)
 			}
 		},
@@ -309,7 +295,7 @@ var (
 			// list creates an empty workspace, matching what the TUI
 			// allows when no packages are selected).
 			if name := firstArg(args); name != "" {
-				if err := actions.AddWorkspace(s, name, wsAddRepos); err != nil {
+				if err := actions.AddWorkspace(context.Background(), s, name, wsAddRepos, nil); err != nil {
 					log.Fatalln(err)
 				}
 				return
@@ -326,7 +312,7 @@ var (
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if err := actions.AddWorkspace(s, r.Name, r.Packages); err != nil {
+			if err := actions.AddWorkspace(context.Background(), s, r.Name, r.Packages, nil); err != nil {
 				log.Fatalln(err)
 			}
 		},
@@ -342,7 +328,7 @@ var (
 			// --repo with zero values clears the package list — same shape
 			// as the TUI letting you deselect everything.
 			if name := firstArg(args); name != "" && cmd.Flags().Changed("repo") {
-				if err := actions.EditWorkspace(s, name, wsEditRepos); err != nil {
+				if err := actions.EditWorkspace(context.Background(), s, name, wsEditRepos, nil); err != nil {
 					log.Fatalln(err)
 				}
 				return
@@ -363,7 +349,7 @@ var (
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if err := actions.EditWorkspace(s, e.Name, e.Packages); err != nil {
+			if err := actions.EditWorkspace(context.Background(), s, e.Name, e.Packages, nil); err != nil {
 				log.Fatalln(err)
 			}
 		},
@@ -376,19 +362,14 @@ var (
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if !flagYes {
-				if err := requireTTY("--yes for non-interactive clean"); err != nil {
-					log.Fatalln(err)
-				}
-				ok, err := forms.CleanWorkspace()
-				if err != nil {
-					log.Fatalln(err)
-				}
-				if !ok {
-					return
-				}
+			ok, err := confirmOrSkip("This will delete untracked files in your workspace. Are you sure?", "--yes for non-interactive clean")
+			if err != nil {
+				log.Fatalln(err)
 			}
-			if err := workspace.Clean(ctx.Root, ctx.Workspaces); err != nil {
+			if !ok {
+				return
+			}
+			if err := workspace.Clean(ctx.Root, ctx.Workspaces, os.Stdout); err != nil {
 				log.Fatalln(err)
 			}
 		},

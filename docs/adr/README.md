@@ -16,6 +16,10 @@ Decisions that shape `qail`'s architecture. Numbered, append-only.
 | [0010](0010-no-clip-package.md) | No `internal/clip` package; clipboard writes inline at call sites | Accepted |
 | [0011](0011-tmux-attach-pure.md) | `Tmux.AttachCommand` returns a string; clipboard writes at the caller | Accepted |
 | [0012](0012-qailhome-purpose-specific-paths.md) | `qailhome` exposes only purpose-specific paths | Accepted |
+| [0013](0013-installer-owns-spinner-ui.md) | `installer` owns spinner UI; `git` package stays pure | Accepted |
+| [0014](0014-actions-own-session-side-commands.md) | Actions own session-side commands (open / cd / explore / mux) | Accepted |
+| [0015](0015-forms-split-select-from-confirm.md) | Forms split selection from confirmation | Accepted |
+| [0016](0016-http-api-layer.md) | HTTP API layer over the actions package | Accepted |
 
 ## Format
 

@@ -16,14 +16,19 @@ var (
 		ValidArgs: []string{"new", "restore"},
 		Args:      cobra.OnlyValidArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			a := args[0]
-			if a == "new" {
-				config.BackUpConfig()
-				config.ConvertOldToNew()
+			s, jsonPath, err := config.DefaultSQLiteStore()
+			if err != nil {
+				log.Fatalln(err)
 			}
-
-			if a == "restore" {
-				config.RestoreConfig()
+			switch args[0] {
+			case "new":
+				if err := actions.ConvertConfig(s, jsonPath); err != nil {
+					log.Fatalln(err)
+				}
+			case "restore":
+				if err := actions.RestoreConfig(s); err != nil {
+					log.Fatalln(err)
+				}
 			}
 		},
 	}

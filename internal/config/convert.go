@@ -84,41 +84,6 @@ func (s *SQLiteStore) ConvertJSON(jsonPath string) error {
 	return s.Write(cfg)
 }
 
-// Package-level shims that hit the default SQLite store. cmd/config.go
-// drives these from the `qail config convert` command. They panic to
-// preserve the previous user-visible behaviour; the underlying methods
-// return errors and should be preferred by new callers.
-
-func BackUpConfig() {
-	s, err := defaultStore()
-	if err != nil {
-		panic(fmt.Sprintf("failed to back up database: %v", err))
-	}
-	if err := s.BackUp(); err != nil {
-		panic(fmt.Sprintf("failed to back up database: %v", err))
-	}
-}
-
-func RestoreConfig() {
-	s, err := defaultStore()
-	if err != nil {
-		panic(fmt.Sprintf("failed to restore database: %v", err))
-	}
-	if err := s.Restore(); err != nil {
-		panic(fmt.Sprintf("failed to restore database: %v", err))
-	}
-}
-
-func ConvertOldToNew() {
-	s, err := defaultStore()
-	if err != nil {
-		panic(fmt.Sprintf("failed to open store: %v", err))
-	}
-	if err := s.ConvertJSON(defaultLegacyJSON); err != nil {
-		panic(err.Error())
-	}
-}
-
 func copyFile(src, dst string) error {
 	sourceFile, err := os.Open(src)
 	if err != nil {

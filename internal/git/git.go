@@ -3,7 +3,6 @@ package git
 import (
 	"context"
 
-	"github.com/ubaniak/qail/internal/forms"
 	"github.com/ubaniak/qail/internal/runner"
 )
 
@@ -24,23 +23,13 @@ func New(r Runner) *Git { return &Git{r: r} }
 // Default returns a Git wired to the OS Runner. Use for non-test callers.
 func Default() *Git { return New(runner.NewOS()) }
 
-// Clone runs `git clone <repo> <path>` and returns combined stdout.
-func (g *Git) Clone(repo, path string) (string, error) {
-	res, err := g.r.Run(context.Background(), runner.Command{
+// Clone runs `git clone <repo> <path>` under ctx and returns combined
+// stdout. Pure domain operation — UI concerns (progress spinners, log
+// streaming) belong at the orchestration layer, not here.
+func (g *Git) Clone(ctx context.Context, repo, path string) (string, error) {
+	res, err := g.r.Run(ctx, runner.Command{
 		Name: "git",
 		Args: []string{"clone", repo, path},
 	})
 	return string(res.Stdout), err
-}
-
-// CloneWithProgress wraps Clone in the huh spinner UI and returns the clone
-// error (if any). The spinner itself has no error channel, so the closure
-// captures the error for return.
-func (g *Git) CloneWithProgress(repo, path, message string) error {
-	var cloneErr error
-	clone := func() {
-		_, cloneErr = g.Clone(repo, path)
-	}
-	forms.Spinner(clone, message)
-	return cloneErr
 }

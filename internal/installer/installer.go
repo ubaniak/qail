@@ -5,7 +5,10 @@
 package installer
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"os"
 
 	"github.com/ubaniak/qail/internal/color"
 	"github.com/ubaniak/qail/internal/git"
@@ -22,15 +25,18 @@ type PackageSpec struct {
 	PostInstall []string
 }
 
-// GitClient is the narrow consumer interface for cloning. *git.Git satisfies it.
+// GitClient is the narrow consumer interface for cloning. The production
+// adapter (spinnerGit) wraps *git.Git in a progress UI; the streaming
+// adapter (streamGit) writes plain progress lines for non-TTY callers
+// (HTTP handlers); tests substitute a fake.
 type GitClient interface {
-	CloneWithProgress(repo, path, message string) error
+	Clone(ctx context.Context, repo, path, message string, w io.Writer) error
 }
 
 // ScriptsClient is the narrow consumer interface for executing a named
 // post-install script. *scripts.Scripts satisfies it.
 type ScriptsClient interface {
-	RunBashScript(scriptName, dir string) error
+	RunBashScript(ctx context.Context, scriptName, dir string, w io.Writer) error
 }
 
 // Installer wires a GitClient + ScriptsClient.
@@ -45,32 +51,54 @@ func New(g GitClient, s ScriptsClient) *Installer {
 }
 
 // Default returns an Installer wired to the OS-backed git + scripts clients.
+// The git client is wrapped in spinnerGit so workspace creation shows a
+// progress UI without leaking that concern into the git package. Use this
+// from CLI code; HTTP handlers use NewStreaming.
 func Default() *Installer {
-	return New(git.Default(), scripts.Default())
+	return New(spinnerGit{inner: git.Default()}, scripts.Default())
+}
+
+// NewStreaming returns an Installer that emits plain progress lines through
+// the writer the caller supplies at call time. No TUI dependencies; suitable
+// for HTTP/SSE flows.
+func NewStreaming() *Installer {
+	return New(streamGit{inner: git.Default()}, scripts.Default())
 }
 
 // Install clones the repo (if RepoURL set) into Dest, then runs the package's
-// post-install scripts in Dest. Returns on the first error.
-func (i *Installer) Install(spec PackageSpec) error {
+// post-install scripts in Dest. Returns on the first error. Progress lines
+// are written to w; w may be nil in which case os.Stdout is used.
+func (i *Installer) Install(ctx context.Context, spec PackageSpec, w io.Writer) error {
+	w = orStdout(w)
 	if spec.RepoURL != "" {
 		msg := fmt.Sprintf("Cloning %s", color.Cyan(spec.Name))
-		if err := i.git.CloneWithProgress(spec.RepoURL, spec.Dest, msg); err != nil {
+		if err := i.git.Clone(ctx, spec.RepoURL, spec.Dest, msg, w); err != nil {
 			return fmt.Errorf("clone %s: %w", spec.Name, err)
 		}
 	}
 	if len(spec.PostInstall) > 0 {
-		fmt.Printf("Running post install scripts for %s: %s\n", color.Green("repos"), color.Cyan(spec.Name))
+		fmt.Fprintf(w, "Running post install scripts for %s: %s\n", color.Green("repos"), color.Cyan(spec.Name))
 	}
-	return i.RunPostInstall(spec.Dest, spec.PostInstall)
+	return i.RunPostInstall(ctx, spec.Dest, spec.PostInstall, w)
 }
 
 // RunPostInstall runs the given scripts against dir, fail-fast.
-func (i *Installer) RunPostInstall(dir string, scripts []string) error {
+func (i *Installer) RunPostInstall(ctx context.Context, dir string, scripts []string, w io.Writer) error {
+	w = orStdout(w)
 	for _, s := range scripts {
-		fmt.Printf("   * Running post install script: %s\n", color.Cyan(s))
-		if err := i.scripts.RunBashScript(s, dir); err != nil {
+		fmt.Fprintf(w, "   * Running post install script: %s\n", color.Cyan(s))
+		if err := i.scripts.RunBashScript(ctx, s, dir, w); err != nil {
 			return fmt.Errorf("post-install script %s: %w", s, err)
 		}
 	}
 	return nil
+}
+
+// orStdout returns w, or os.Stdout if w is nil. Lets domain code assume a
+// non-nil writer without forcing every caller to pass os.Stdout explicitly.
+func orStdout(w io.Writer) io.Writer {
+	if w == nil {
+		return os.Stdout
+	}
+	return w
 }

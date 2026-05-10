@@ -37,17 +37,12 @@ var (
 			// --yes skips the confirm prompt; without it we still ask
 			// once so a typo doesn't silently nuke a repo.
 			if len(args) > 0 {
-				if !flagYes {
-					if err := requireTTY("--yes for non-interactive remove"); err != nil {
-						log.Fatalln(err)
-					}
-					ok, err := forms.Confirm("Remove the listed repos?")
-					if err != nil {
-						log.Fatalln(err)
-					}
-					if !ok {
-						return
-					}
+				ok, err := confirmOrSkip("Remove the listed repos?", "--yes for non-interactive remove")
+				if err != nil {
+					log.Fatalln(err)
+				}
+				if !ok {
+					return
 				}
 				if err := actions.RemoveRepos(s, args); err != nil {
 					log.Fatalln(err)
@@ -63,7 +58,11 @@ var (
 				log.Fatalln(err)
 			}
 
-			toRemove, confirmed, err := forms.SelectReposToRemove(repos)
+			toRemove, err := forms.SelectRepos(repos)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			confirmed, err := forms.Confirm("Remove the selected repos?")
 			if err != nil {
 				log.Fatalln(err)
 			}

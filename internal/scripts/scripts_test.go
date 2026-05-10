@@ -1,6 +1,7 @@
 package scripts
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,7 +28,7 @@ func TestRunBashScriptInvokesBashWithScriptPath(t *testing.T) {
 	rec := runner.NewRecorder().RespondOK([]byte("hi\n"))
 	s := New(rec, dir)
 
-	if err := s.RunBashScript("hello.sh", "/tmp/work"); err != nil {
+	if err := s.RunBashScript(context.Background(), "hello.sh", "/tmp/work", nil); err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
 
@@ -53,7 +54,7 @@ func TestRunBashScriptRejectsPathTraversal(t *testing.T) {
 	rec := runner.NewRecorder()
 	s := New(rec, dir)
 
-	err := s.RunBashScript("../etc/passwd", "/tmp")
+	err := s.RunBashScript(context.Background(), "../etc/passwd", "/tmp", nil)
 	if err == nil {
 		t.Fatalf("expected error for path traversal")
 	}

@@ -77,6 +77,15 @@ func DefaultStore() (Store, error) {
 	return defaultStore()
 }
 
+// DefaultSQLiteStore returns the production *SQLiteStore plus the legacy
+// JSON path used by ConvertJSON. Migration is SQLite-specific (the in-memory
+// store is fresh each run), so cmd handlers that drive `qail config convert`
+// reach for this concrete adapter rather than the Store interface.
+func DefaultSQLiteStore() (*SQLiteStore, string, error) {
+	s, err := defaultStore()
+	return s, defaultLegacyJSON, err
+}
+
 // ValidateConfig reports whether the persisted config has the minimum
 // fields required for qail to operate (currently: Root must be set).
 func ValidateConfig() error {

@@ -1,6 +1,7 @@
 package git
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ubaniak/qail/internal/runner"
@@ -10,7 +11,7 @@ func TestCloneInvokesGitWithCorrectArgs(t *testing.T) {
 	rec := runner.NewRecorder()
 	g := New(rec)
 
-	_, err := g.Clone("git@github.com:foo/bar.git", "/tmp/bar")
+	_, err := g.Clone(context.Background(), "git@github.com:foo/bar.git", "/tmp/bar")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}

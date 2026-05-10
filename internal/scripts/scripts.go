@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
-
-	"github.com/atotto/clipboard"
 
 	"github.com/ubaniak/qail/internal/color"
 	"github.com/ubaniak/qail/internal/qailhome"
@@ -126,7 +126,14 @@ func (s *Scripts) RemoveScript(scriptName string) error {
 	return os.Remove(scriptPath)
 }
 
-func (s *Scripts) RunBashScript(scriptName, dir string) error {
+// RunBashScript runs scriptName under ctx in dir. Stdout/stderr captured
+// from the subprocess are echoed to w (defaulting to os.Stdout when nil)
+// preceded by a header so HTTP/SSE callers can stream output without
+// touching the actual terminal.
+func (s *Scripts) RunBashScript(ctx context.Context, scriptName, dir string, w io.Writer) error {
+	if w == nil {
+		w = os.Stdout
+	}
 	scriptsDir, err := s.GetScriptDir()
 	if err != nil {
 		return err
@@ -136,21 +143,33 @@ func (s *Scripts) RunBashScript(scriptName, dir string) error {
 		return err
 	}
 
-	res, err := s.r.Run(context.Background(), runner.Command{
+	res, err := s.r.Run(ctx, runner.Command{
 		Name: "/bin/bash",
 		Args: []string{scriptPath},
 		Dir:  dir,
 	})
 	if len(res.Stdout) > 0 {
-		fmt.Printf("%s %s %s\n\n", color.Yellow(">>>"), color.Green("Stdout"), color.Yellow("<<<"))
-		fmt.Println(string(res.Stdout))
+		fmt.Fprintf(w, "%s %s %s\n\n", color.Yellow(">>>"), color.Green("Stdout"), color.Yellow("<<<"))
+		fmt.Fprintln(w, string(res.Stdout))
 	}
 	if len(res.Stderr) > 0 {
-		fmt.Printf("%s %s %s\n\n", color.Yellow(">>>"), color.Red("Stderr"), color.Yellow("<<<"))
-		fmt.Println(string(res.Stderr))
+		fmt.Fprintf(w, "%s %s %s\n\n", color.Yellow(">>>"), color.Red("Stderr"), color.Yellow("<<<"))
+		fmt.Fprintln(w, string(res.Stderr))
 	}
 
 	return err
+}
+
+// Has reports whether a script with the given name exists in the scripts
+// directory. Used by callers that want to fail fast on a typo before
+// running confirm prompts; the domain owns this check so cmd handlers do
+// not reach into ListScripts to roll their own.
+func (s *Scripts) Has(name string) (bool, error) {
+	all, err := s.ListScripts()
+	if err != nil {
+		return false, err
+	}
+	return slices.Contains(all, name), nil
 }
 
 func (s *Scripts) ListScripts() ([]string, error) {
@@ -171,7 +190,7 @@ func (s *Scripts) ListScripts() ([]string, error) {
 	return SortScripts(scriptNames), nil
 }
 
-func (s *Scripts) Open(editor, scriptName string) error {
+func (s *Scripts) Open(ctx context.Context, editor, scriptName string) error {
 	if editor == "" {
 		return errors.New("no editor selected ... ")
 	}
@@ -183,23 +202,21 @@ func (s *Scripts) Open(editor, scriptName string) error {
 
 	scriptPath := filepath.Join(scriptDir, scriptName)
 
-	_, err = s.r.Run(context.Background(), runner.Command{
+	_, err = s.r.Run(ctx, runner.Command{
 		Name: editor,
 		Args: []string{scriptPath},
 	})
 	return err
 }
 
-// Cd copies a `cd <scriptsDir>` command to the clipboard so the user can
-// paste it into a real shell. The qail process cannot change the parent
-// shell's directory directly.
-func (s *Scripts) Cd() error {
+// CdCommand returns the `cd <scriptsDir>` shell command the caller can
+// copy to the clipboard or echo to the user. The qail process cannot
+// change the parent shell's directory directly, and the clipboard write
+// is a CLI concern (ADR-0010), so this method is pure.
+func (s *Scripts) CdCommand() (string, error) {
 	scriptDir, err := s.GetScriptDir()
 	if err != nil {
-		return err
+		return "", err
 	}
-	cmd := fmt.Sprintf("cd %s", scriptDir)
-	fmt.Printf("%s copied %s to clipboard\n\n", color.Yellow(">>>"), color.Green(cmd))
-	clipboard.WriteAll(cmd)
-	return nil
+	return fmt.Sprintf("cd %s", scriptDir), nil
 }

@@ -1,25 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
-	"slices"
 
 	"github.com/spf13/cobra"
 
 	"github.com/ubaniak/qail/internal/forms"
 	"github.com/ubaniak/qail/internal/tmux"
 )
-
-// sessionExists reports whether the named tmux session is in the live
-// session list, so non-interactive `mux rm <name>` fails fast on typos.
-func sessionExists(t *tmux.Tmux, name string) (bool, error) {
-	all, err := t.ListSessions()
-	if err != nil {
-		return false, err
-	}
-	return slices.Contains(all, name), nil
-}
 
 var (
 	tmuxCmd = &cobra.Command{
@@ -31,7 +21,7 @@ var (
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Run: func(cmd *cobra.Command, args []string) {
-			sessions, err := tmux.Default().ListSessions()
+			sessions, err := tmux.Default().ListSessions(context.Background())
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -44,28 +34,24 @@ var (
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			t := tmux.Default()
+			ctx := context.Background()
 
 			if name := firstArg(args); name != "" {
-				ok, err := sessionExists(t, name)
+				ok, err := t.HasSession(ctx, name)
 				if err != nil {
 					log.Fatalln(err)
 				}
 				if !ok {
 					log.Fatalf("tmux session %q not found\n", name)
 				}
-				if !flagYes {
-					if err := requireTTY("--yes for non-interactive remove"); err != nil {
-						log.Fatalln(err)
-					}
-					confirm, err := forms.Confirm(fmt.Sprintf("Remove tmux session %q?", name))
-					if err != nil {
-						log.Fatalln(err)
-					}
-					if !confirm {
-						return
-					}
+				confirmed, err := confirmOrSkip(fmt.Sprintf("Remove tmux session %q?", name), "--yes for non-interactive remove")
+				if err != nil {
+					log.Fatalln(err)
 				}
-				if err := t.RemoveSession(name); err != nil {
+				if !confirmed {
+					return
+				}
+				if err := t.RemoveSession(ctx, name); err != nil {
 					log.Fatalln(err)
 				}
 				return
@@ -74,18 +60,22 @@ var (
 			if err := requireTTY("tmux session name"); err != nil {
 				log.Fatalln(err)
 			}
-			sessions, err := t.ListSessions()
+			sessions, err := t.ListSessions(ctx)
 			if err != nil {
 				log.Fatalln(err)
 			}
-			s, ok, err := forms.RemoveTmuxSession(sessions)
+			s, err := forms.SelectTmuxSession(sessions)
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if !ok {
+			confirmed, err := forms.Confirm(fmt.Sprintf("Remove tmux session %q?", s))
+			if err != nil {
+				log.Fatalln(err)
+			}
+			if !confirmed {
 				return
 			}
-			if err := t.RemoveSession(s); err != nil {
+			if err := t.RemoveSession(ctx, s); err != nil {
 				log.Fatalln(err)
 			}
 		},

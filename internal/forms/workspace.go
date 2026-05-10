@@ -189,11 +189,11 @@ func EditWorkspace(n string, packages []string, allRepos map[string]string) (wor
 	}, nil
 }
 
-// SelectWorkspaceToRemove prompts the user to pick a workspace and confirm
-// removal. Returns the selected name, whether the user confirmed, and any
-// prompt error. The caller performs the deletion (via actions or directly
-// against a Store); this function does not mutate the input map.
-func SelectWorkspaceToRemove(ws config.Workspace) (string, bool, error) {
+// SelectWorkspaceName prompts the user to pick a workspace and returns the
+// chosen name. Pure selector — confirmation is the caller's job (chain
+// with forms.Confirm or cmd's confirmOrSkip helper). Splitting the two
+// concerns lets each be tested and reused independently.
+func SelectWorkspaceName(ws config.Workspace) (string, error) {
 	var name string
 	s := huh.NewSelect[string]().Title("Choose a workspace").Value(&name)
 
@@ -204,35 +204,9 @@ func SelectWorkspaceToRemove(ws config.Workspace) (string, bool, error) {
 	}
 	s.Options(opts...)
 
-	var confirm bool
-	c := huh.NewConfirm().
-		Title("This will remove the selected workspace. Are you sure?").
-		Affirmative("Yes").
-		Negative("No").
-		Value(&confirm)
-
-	f := huh.NewForm(
-		huh.NewGroup(s),
-		huh.NewGroup(c),
-	)
+	f := huh.NewForm(huh.NewGroup(s))
 	if err := f.Run(); err != nil {
-		return "", false, err
+		return "", err
 	}
-	return name, confirm, nil
-}
-
-func CleanWorkspace() (bool, error) {
-	var confirm bool
-	c := huh.NewConfirm().
-		Title("This will delete untracked files in your workspace. Are you sure?").
-		Affirmative("Yes").
-		Negative("No").
-		Value(&confirm)
-
-	f := huh.NewForm(
-		huh.NewGroup(c),
-	)
-	err := f.Run()
-
-	return confirm, err
+	return name, nil
 }
