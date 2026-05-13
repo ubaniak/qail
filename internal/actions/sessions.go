@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"time"
 
@@ -72,6 +73,22 @@ func OpenWorkspace(ctx context.Context, s config.Store, r Runner, name string) e
 		Stderr: os.Stderr,
 	})
 	return err
+}
+
+// LaunchEditor spawns the configured editor against the workspace
+// directory and returns immediately. No stdio is inherited and no
+// context is bound — the editor process must survive the desktop app's
+// goroutine lifetime. Intended for the Wails GUI where there is no TTY
+// to hand over; works with GUI editors (code, cursor, subl) that
+// self-detach. TTY editors (vim) won't render usefully and should still
+// use the CLI `qail ws open` path that calls OpenWorkspace.
+func LaunchEditor(s config.Store, name string) error {
+	cmd, err := OpenWorkspaceCommand(s, name)
+	if err != nil {
+		return err
+	}
+	c := exec.Command(cmd.Editor, cmd.Path)
+	return c.Start()
 }
 
 // ExploreWorkspacePath touches LastUsed and returns the workspace

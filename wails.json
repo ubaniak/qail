@@ -1,0 +1,22 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "qail",
+  "outputfilename": "qail",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "wailsjsdir": "./frontend/src",
+  "version": "1.0.0",
+  "author": {
+    "name": "qail"
+  },
+  "info": {
+    "productName": "qail",
+    "productVersion": "1.0.0",
+    "comments": "qail menubar app"
+  },
+  "build": {
+    "compilerCommand": ""
+  }
+}

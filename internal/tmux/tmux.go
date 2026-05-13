@@ -110,17 +110,28 @@ func (t *Tmux) IsInstalled(ctx context.Context) (error, bool) {
 	return nil, true
 }
 
-// ListSessions returns live tmux session names.
+// ListSessions returns live tmux session names. Two empty cases collapse
+// to []string{}: tmux exit 1 with "no server running" stderr (server
+// never started, or shut down after the last session died) and tmux exit
+// 0 with empty stdout (server up, zero sessions — possible briefly after
+// kill-session on the last session). Without this collapse,
+// strings.Split("", "\n") yields [""] and the UI renders a phantom row.
 func (t *Tmux) ListSessions(ctx context.Context) ([]string, error) {
 	res, err := t.r.Run(ctx, runner.Command{
 		Name: "tmux",
 		Args: []string{"list-sessions", "-F", "#S"},
 	})
 	if err != nil {
+		if strings.Contains(string(res.Stderr), "no server running") {
+			return []string{}, nil
+		}
 		return nil, fmt.Errorf("error running tmux command: %s, stderr: %s", err, string(res.Stderr))
 	}
-	sessions := strings.Split(strings.TrimSpace(string(res.Stdout)), "\n")
-	return sessions, nil
+	trimmed := strings.TrimSpace(string(res.Stdout))
+	if trimmed == "" {
+		return []string{}, nil
+	}
+	return strings.Split(trimmed, "\n"), nil
 }
 
 // HasSession reports whether the named session appears in `tmux

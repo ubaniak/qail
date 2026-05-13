@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/* qail palette — zinc base, emerald accent (matches the CLI's color.Green
+   "Done :)") and rose for destructive. Antd ConfigProvider in main.tsx
+   uses the same tokens so the two systems stay in sync. */
+@theme {
+  --color-accent: #34d399;          /* emerald-400 */
+  --color-accent-fg: #022c22;       /* emerald-950 — text on accent bg */
+  --color-danger: #fb7185;          /* rose-400 */
+  --font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Inter", system-ui, "Segoe UI",
+    Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  background: #09090b; /* zinc-950 */
+  color: #f4f4f5;       /* zinc-100 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Wails drag region marker. The frameless window can be moved by
+   dragging anywhere with this attribute; interactive children opt out
+   below so clicks aren't swallowed. */
+[data-drag] {
+  -webkit-app-region: drag;
+}
+
+[data-drag] button,
+[data-drag] a,
+[data-drag] input,
+[data-drag] [role="button"] {
+  -webkit-app-region: no-drag;
+}
+
+/* Slim scrollbar matches dark theme. */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Antd nudges — keep tab bar tight on a small 480-wide window. */
+.ant-tabs > .ant-tabs-nav { margin-bottom: 0 !important; }
+.ant-tabs-tab { padding: 6px 10px !important; }

@@ -2,6 +2,7 @@ package tmux
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/ubaniak/qail/internal/runner"
@@ -49,6 +50,39 @@ func TestListSessionsParsesNewlineFormat(t *testing.T) {
 		if got[i] != s {
 			t.Fatalf("sessions[%d] = %q, want %q", i, got[i], s)
 		}
+	}
+}
+
+func TestListSessionsEmptyStdoutReturnsEmptySlice(t *testing.T) {
+	// tmux server up with zero sessions — list-sessions exits 0 with no
+	// stdout. Must not become [""] (which the UI renders as a phantom row).
+	rec := runner.NewRecorder().RespondOK([]byte(""))
+	tx := New(rec)
+
+	got, err := tx.ListSessions(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("sessions = %#v, want empty", got)
+	}
+}
+
+func TestListSessionsNoServerRunningReturnsEmptySlice(t *testing.T) {
+	// tmux exits 1 with "no server running on ..." on stderr when the
+	// daemon isn't up. Treat as zero sessions, not an error.
+	rec := runner.NewRecorder().Respond(
+		runner.Result{Stderr: []byte("no server running on /tmp/tmux-501/default"), ExitCode: 1},
+		errors.New("exit status 1"),
+	)
+	tx := New(rec)
+
+	got, err := tx.ListSessions(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("sessions = %#v, want empty", got)
 	}
 }
 
