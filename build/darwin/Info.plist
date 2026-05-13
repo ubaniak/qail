@@ -1,0 +1,32 @@
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleName</key>
+    <string>qail</string>
+    <key>CFBundleExecutable</key>
+    <string>qail</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.ubaniak.qail</string>
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleGetInfoString</key>
+    <string>qail menubar app</string>
+    <key>CFBundleIconFile</key>
+    <string>iconfile</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.15.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <!-- LSUIElement hides the dock icon + Cmd-Tab entry. Combined with
+         ActivationPolicyAccessory in cmd/app.go it gives a pure
+         menubar app. -->
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>© 2026 qail</string>
+</dict>
+</plist>
