@@ -38,8 +38,9 @@ func (s *Server) handleListWorkspaces(w http.ResponseWriter, _ *http.Request) {
 }
 
 type addWorkspaceRequest struct {
-	Name     string   `json:"name"`
-	Packages []string `json:"packages"`
+	Name        string   `json:"name"`
+	Packages    []string `json:"packages"`
+	PostInstall []string `json:"postInstall"`
 }
 
 // handleAddWorkspace creates a new workspace and streams progress as SSE.
@@ -61,7 +62,7 @@ func (s *Server) handleAddWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	streamAction(r.Context(), sw, func(ctx context.Context, out io.Writer) error {
-		return actions.AddWorkspace(ctx, s.store, req.Name, req.Packages, out)
+		return actions.AddWorkspace(ctx, s.store, req.Name, req.Packages, req.PostInstall, out)
 	})
 }
 

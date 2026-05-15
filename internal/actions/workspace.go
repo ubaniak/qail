@@ -4,22 +4,36 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path"
 	"time"
 
 	"github.com/ubaniak/qail/internal/config"
+	"github.com/ubaniak/qail/internal/installer"
+	"github.com/ubaniak/qail/internal/scripts"
 	"github.com/ubaniak/qail/internal/workspace"
 )
 
 // AddWorkspace creates a new workspace on disk (cloning each package and
-// running post-install scripts) and registers it in the config. If disk
-// creation fails the registry is not updated, matching the old
-// HandleConfig behaviour. Progress is written to out (nil → os.Stdout).
-func AddWorkspace(ctx context.Context, s config.Store, name string, packages []string, out io.Writer) error {
+// running post-install scripts) and registers it in the config. The
+// postInstall slice attaches workspace-scoped scripts to the new
+// workspace before the build runs, so they fire as part of creation.
+// If disk creation fails the registry is not updated. Progress is
+// written to out (nil → os.Stdout).
+func AddWorkspace(ctx context.Context, s config.Store, name string, packages []string, postInstall []string, out io.Writer) error {
 	if name == "" {
 		return fmt.Errorf("workspace name must not be empty")
 	}
+	if err := validateScopedScripts(scripts.ScopeWorkspace, postInstall); err != nil {
+		return err
+	}
 	storeMu.Lock()
 	cfg, err := s.Read()
+	if err == nil && len(postInstall) > 0 {
+		if cfg.PostInstallScripts.Workspace == nil {
+			cfg.PostInstallScripts.Workspace = make(map[string][]string)
+		}
+		cfg.PostInstallScripts.Workspace[name] = append([]string(nil), postInstall...)
+	}
 	storeMu.Unlock()
 	if err != nil {
 		return err
@@ -32,6 +46,12 @@ func AddWorkspace(ctx context.Context, s config.Store, name string, packages []s
 			c.Workspaces = make(config.Workspace)
 		}
 		c.Workspaces[name] = config.NewWorkspaceProfile(packages, time.Now().UTC())
+		if len(postInstall) > 0 {
+			if c.PostInstallScripts.Workspace == nil {
+				c.PostInstallScripts.Workspace = make(map[string][]string)
+			}
+			c.PostInstallScripts.Workspace[name] = append([]string(nil), postInstall...)
+		}
 		return nil
 	})
 }
@@ -63,9 +83,10 @@ func EditWorkspace(ctx context.Context, s config.Store, name string, packages []
 
 // CloneWorkspace registers dstName with the given packages and creates it
 // on disk. The caller is responsible for resolving the source workspace's
-// package list (typically via forms.CloneWorkspace).
+// package list (typically via forms.CloneWorkspace). The cloned workspace
+// starts with no post-install scripts; callers can attach them afterwards.
 func CloneWorkspace(ctx context.Context, s config.Store, dstName string, packages []string, out io.Writer) error {
-	return AddWorkspace(ctx, s, dstName, packages, out)
+	return AddWorkspace(ctx, s, dstName, packages, nil, out)
 }
 
 // CreateWorkspaceOnDisk (re)materialises an already-registered workspace
@@ -128,22 +149,70 @@ func ListWorkspaces(s config.Store) (config.Workspace, map[string][]string, erro
 }
 
 // SetWorkspacePostInstall replaces the post-install script list for a
-// workspace. An empty scripts slice clears the entry.
-func SetWorkspacePostInstall(s config.Store, name string, scripts []string) error {
+// workspace. An empty scripts slice clears the entry. Each name must
+// exist in the workspace scripts bucket; cross-scope references are
+// rejected so the post-install runner can never resolve to a repo script.
+func SetWorkspacePostInstall(s config.Store, name string, scriptList []string) error {
 	if name == "" {
 		return fmt.Errorf("workspace must not be empty")
+	}
+	if err := validateScopedScripts(scripts.ScopeWorkspace, scriptList); err != nil {
+		return err
 	}
 	return readWrite(s, func(cfg *config.Config) error {
 		if cfg.PostInstallScripts.Workspace == nil {
 			cfg.PostInstallScripts.Workspace = make(map[string][]string)
 		}
-		if len(scripts) == 0 {
+		if len(scriptList) == 0 {
 			delete(cfg.PostInstallScripts.Workspace, name)
 			return nil
 		}
-		cfg.PostInstallScripts.Workspace[name] = append([]string(nil), scripts...)
+		cfg.PostInstallScripts.Workspace[name] = append([]string(nil), scriptList...)
 		return nil
 	})
+}
+
+// RunWorkspaceScript executes a workspace-scoped script against the
+// named workspace's on-disk path. Progress streams to out. The script
+// does not need to be currently attached to the workspace; this is the
+// "run on demand" entrypoint.
+func RunWorkspaceScript(ctx context.Context, s config.Store, workspaceName, scriptName string, out io.Writer) error {
+	if workspaceName == "" {
+		return fmt.Errorf("workspace must not be empty")
+	}
+	if scriptName == "" {
+		return fmt.Errorf("script must not be empty")
+	}
+	cfg, err := s.Read()
+	if err != nil {
+		return err
+	}
+	if _, ok := cfg.Workspaces[workspaceName]; !ok {
+		return fmt.Errorf("workspace %q not found", workspaceName)
+	}
+	dir := path.Join(cfg.Root, workspaceName)
+	inst := installer.NewStreaming()
+	return inst.RunPostInstall(ctx, scripts.ScopeWorkspace, dir, []string{scriptName}, out)
+}
+
+// validateScopedScripts returns an error if any name in list is missing
+// from the given scope's bucket. Empty list is a no-op (clears the
+// attachment list).
+func validateScopedScripts(scope scripts.Scope, list []string) error {
+	if len(list) == 0 {
+		return nil
+	}
+	sc := scripts.Default()
+	for _, name := range list {
+		ok, err := sc.Has(scope, name)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("script %q not found in %s scope", name, scope)
+		}
+	}
+	return nil
 }
 
 // WorkspaceContext is the read-only slice of config used by flows that

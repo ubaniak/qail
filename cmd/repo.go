@@ -170,7 +170,7 @@ var (
 
 			selected := postInstall[r]
 
-			scriptList, err := scripts.Default().ListScripts()
+			scriptList, err := scripts.Default().ListScripts(scripts.ScopeRepo)
 			if err != nil {
 				log.Fatalln(err)
 			}

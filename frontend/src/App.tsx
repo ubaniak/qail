@@ -9,6 +9,7 @@ import ProgressDrawer from "./component/Toolbox/ProgressDrawer";
 import TopBar from "./component/Toolbox/TopBar";
 import ToolboxTabs from "./component/Toolbox/Tabs";
 import type { ToolboxTab } from "./component/Toolbox/Tabs";
+import { PostInstallIndex } from "./pages/PostInstall";
 import { RepoIndex } from "./pages/Repo";
 import { SettingsIndex } from "./pages/Settings";
 import { TmuxIndex } from "./pages/Tmux";
@@ -25,6 +26,12 @@ const tabs: ToolboxTab[] = [
   },
   { key: "repos", label: "Repos", component: <RepoIndex />, shortcut: "⌘2" },
   { key: "tmux", label: "Tmux", component: <TmuxIndex />, shortcut: "⌘3" },
+  {
+    key: "postinstall",
+    label: "Post-install",
+    component: <PostInstallIndex />,
+    shortcut: "⌘4",
+  },
 ];
 
 function App() {

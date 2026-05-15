@@ -12,11 +12,11 @@ func TestCreateBashScriptWritesFile(t *testing.T) {
 	dir := t.TempDir()
 	s := New(runner.NewRecorder(), dir)
 
-	if err := s.CreateBashScript("deploy"); err != nil {
+	if err := s.CreateBashScript("deploy", ScopeWorkspace); err != nil {
 		t.Fatalf("CreateBashScript: %v", err)
 	}
 
-	path := filepath.Join(dir, "deploy.sh")
+	path := filepath.Join(dir, string(ScopeWorkspace), "deploy.sh")
 	info, err := os.Stat(path)
 	if err != nil {
 		t.Fatalf("script not created: %v", err)
@@ -30,10 +30,10 @@ func TestCreateBashScriptAppendsSh(t *testing.T) {
 	dir := t.TempDir()
 	s := New(runner.NewRecorder(), dir)
 
-	if err := s.CreateBashScript("setup"); err != nil {
+	if err := s.CreateBashScript("setup", ScopeRepo); err != nil {
 		t.Fatalf("CreateBashScript: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "setup.sh")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, string(ScopeRepo), "setup.sh")); err != nil {
 		t.Fatalf("expected setup.sh: %v", err)
 	}
 }
@@ -42,10 +42,10 @@ func TestCreateBashScriptKeepsExistingSuffix(t *testing.T) {
 	dir := t.TempDir()
 	s := New(runner.NewRecorder(), dir)
 
-	if err := s.CreateBashScript("run.sh"); err != nil {
+	if err := s.CreateBashScript("run.sh", ScopeWorkspace); err != nil {
 		t.Fatalf("CreateBashScript: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "run.sh")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, string(ScopeWorkspace), "run.sh")); err != nil {
 		t.Fatalf("expected run.sh: %v", err)
 	}
 }
@@ -54,19 +54,23 @@ func TestCreateBashScriptRejectsDuplicate(t *testing.T) {
 	dir := seedScripts(t, "exists.sh", "#!/bin/bash")
 	s := New(runner.NewRecorder(), dir)
 
-	if err := s.CreateBashScript("exists.sh"); err == nil {
+	if err := s.CreateBashScript("exists.sh", ScopeWorkspace); err == nil {
 		t.Fatal("expected error for duplicate script")
 	}
 }
 
 func TestListScriptsReturnsSorted(t *testing.T) {
 	dir := t.TempDir()
+	scopeDir := filepath.Join(dir, string(ScopeWorkspace))
+	if err := os.MkdirAll(scopeDir, 0755); err != nil {
+		t.Fatalf("mkdir scope: %v", err)
+	}
 	for _, name := range []string{"z.sh", "a.sh", "m.sh"} {
-		os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/bash"), 0755)
+		os.WriteFile(filepath.Join(scopeDir, name), []byte("#!/bin/bash"), 0755)
 	}
 	s := New(runner.NewRecorder(), dir)
 
-	got, err := s.ListScripts()
+	got, err := s.ListScripts(ScopeWorkspace)
 	if err != nil {
 		t.Fatalf("ListScripts: %v", err)
 	}
@@ -95,10 +99,10 @@ func TestRemoveScriptDeletesFile(t *testing.T) {
 	dir := seedScripts(t, "bye.sh", "#!/bin/bash")
 	s := New(runner.NewRecorder(), dir)
 
-	if err := s.RemoveScript("bye.sh"); err != nil {
+	if err := s.RemoveScript("bye.sh", ScopeWorkspace); err != nil {
 		t.Fatalf("RemoveScript: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "bye.sh")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, string(ScopeWorkspace), "bye.sh")); !os.IsNotExist(err) {
 		t.Fatalf("script still exists after remove")
 	}
 }
@@ -107,7 +111,7 @@ func TestRemoveScriptRejectsPathTraversal(t *testing.T) {
 	dir := seedScripts(t, "", "")
 	s := New(runner.NewRecorder(), dir)
 
-	if err := s.RemoveScript("../etc/passwd"); err == nil {
+	if err := s.RemoveScript("../etc/passwd", ScopeWorkspace); err == nil {
 		t.Fatal("expected error for path traversal")
 	}
 }
@@ -116,5 +120,25 @@ func TestGetScriptDirEmptyReturnsError(t *testing.T) {
 	s := New(runner.NewRecorder(), "")
 	if _, err := s.GetScriptDir(); err == nil {
 		t.Fatal("expected error for empty scriptsDir")
+	}
+}
+
+func TestReadScriptReturnsContents(t *testing.T) {
+	dir := seedScripts(t, "ok.sh", "#!/bin/bash\necho hi\n")
+	s := New(runner.NewRecorder(), dir)
+	body, err := s.ReadScript("ok.sh", ScopeWorkspace)
+	if err != nil {
+		t.Fatalf("ReadScript: %v", err)
+	}
+	if body != "#!/bin/bash\necho hi\n" {
+		t.Fatalf("body = %q", body)
+	}
+}
+
+func TestReadScriptRejectsPathTraversal(t *testing.T) {
+	dir := seedScripts(t, "", "")
+	s := New(runner.NewRecorder(), dir)
+	if _, err := s.ReadScript("../etc/passwd", ScopeWorkspace); err == nil {
+		t.Fatal("expected error for path traversal")
 	}
 }

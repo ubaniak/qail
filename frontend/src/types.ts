@@ -43,3 +43,10 @@ export type Settings = {
   editors: models.EditorDTO[];
   defaultEditor: string;
 };
+
+// Scope mirrors scripts.Scope in the Go backend. Every scripts binding
+// takes the string form of this; the constants exist so callers never
+// have to remember the literal.
+export type Scope = "workspace" | "repo";
+export const SCOPE_WORKSPACE: Scope = "workspace";
+export const SCOPE_REPO: Scope = "repo";

@@ -9,6 +9,7 @@ import type { CallServiceResult } from "./hooks";
 import type {
   WorkspaceMap,
   RepoMap,
+  Scope,
   Settings,
 } from "../types";
 
@@ -23,11 +24,12 @@ export const useListWorkspaces = (): CallServiceResult<WorkspaceMap> =>
 export const mutateCreateWorkspace = (
   name: string,
   repos: string[],
+  postInstall: string[],
   onSuccess: () => void,
   onError?: (e: Error) => void
 ): void =>
   mutateService({
-    call: async () => requireApi().AddWorkspace(name, repos),
+    call: async () => requireApi().AddWorkspace(name, repos, postInstall),
     onSuccess,
     onError,
   });
@@ -235,6 +237,110 @@ export const mutateRemoveTmux = (
 ): void =>
   mutateService({
     call: async () => requireApi().RemoveMuxSession(name),
+    onSuccess,
+    onError,
+  });
+
+// ---------- scripts ---------------------------------------------------------
+
+// Scripts are scoped: workspace or repo. The Wails binding accepts the
+// scope as a string so the wrapper passes through directly. callService
+// memoises by JSON-stringifying its second arg, so the scope flows in as
+// part of the dependency key and the hook re-fetches on toggle.
+export const useListScripts = (scope: Scope): CallServiceResult<string[]> =>
+  callService<string[]>(
+    { call: async () => requireApi().ListScripts(scope) },
+    [],
+    { scope }
+  );
+
+export const mutateAddScript = (
+  name: string,
+  scope: Scope,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().AddScript(name, scope),
+    onSuccess,
+    onError,
+  });
+
+export const mutateRemoveScript = (
+  name: string,
+  scope: Scope,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().RemoveScript(name, scope),
+    onSuccess,
+    onError,
+  });
+
+export const fetchScriptContents = async (
+  name: string,
+  scope: Scope
+): Promise<string> => requireApi().ReadScript(name, scope);
+
+export const mutateWriteScript = (
+  name: string,
+  scope: Scope,
+  contents: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().WriteScript(name, scope, contents),
+    onSuccess,
+    onError,
+  });
+
+export const mutateSetWorkspacePostInstall = (
+  workspace: string,
+  scripts: string[],
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().SetWorkspacePostInstall(workspace, scripts),
+    onSuccess,
+    onError,
+  });
+
+export const mutateSetRepoPostInstall = (
+  repo: string,
+  scripts: string[],
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().SetRepoPostInstall(repo, scripts),
+    onSuccess,
+    onError,
+  });
+
+export const mutateRunWorkspaceScript = (
+  workspace: string,
+  script: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().RunWorkspaceScript(workspace, script),
+    onSuccess,
+    onError,
+  });
+
+export const mutateRunRepoScript = (
+  workspace: string,
+  repo: string,
+  script: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().RunRepoScript(workspace, repo, script),
     onSuccess,
     onError,
   });

@@ -3,8 +3,11 @@ package installer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"testing"
+
+	"github.com/ubaniak/qail/internal/scripts"
 )
 
 type fakeGit struct {
@@ -24,8 +27,8 @@ type fakeScripts struct {
 	err   error
 }
 
-func (f *fakeScripts) RunBashScript(_ context.Context, script, dir string, _ io.Writer) error {
-	f.calls = append(f.calls, "script "+script+" "+dir)
+func (f *fakeScripts) RunBashScript(_ context.Context, scope scripts.Scope, script, dir string, _ io.Writer) error {
+	f.calls = append(f.calls, fmt.Sprintf("script %s %s %s", scope, script, dir))
 	return f.err
 }
 
@@ -54,7 +57,7 @@ func TestInstallClonesThenRunsScripts(t *testing.T) {
 	if len(s.calls) != 1 {
 		t.Fatalf("script calls = %d, want 1", len(s.calls))
 	}
-	if s.calls[0] != "script bootstrap.sh /work/svc-a" {
+	if s.calls[0] != "script repo bootstrap.sh /work/svc-a" {
 		t.Fatalf("script call = %q", s.calls[0])
 	}
 }

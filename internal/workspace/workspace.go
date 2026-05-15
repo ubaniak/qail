@@ -11,6 +11,7 @@ import (
 	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/forms"
 	"github.com/ubaniak/qail/internal/installer"
+	"github.com/ubaniak/qail/internal/scripts"
 	"github.com/ubaniak/qail/internal/tmux"
 )
 
@@ -20,7 +21,7 @@ import (
 // fake without importing the production installer.
 type Installer interface {
 	Install(ctx context.Context, spec installer.PackageSpec, w io.Writer) error
-	RunPostInstall(ctx context.Context, dir string, scripts []string, w io.Writer) error
+	RunPostInstall(ctx context.Context, scope scripts.Scope, dir string, names []string, w io.Writer) error
 }
 
 type Workspace struct {
@@ -127,7 +128,7 @@ func (w Workspace) populate(ctx context.Context, wsPath string, out io.Writer) e
 		if len(wsScripts) > 0 {
 			fmt.Fprintf(out, "Running post install scripts for %s: %s \n", color.Green("workspace"), color.Cyan(w.Name))
 		}
-		if err := w.inst.RunPostInstall(ctx, wsPath, wsScripts, out); err != nil {
+		if err := w.inst.RunPostInstall(ctx, scripts.ScopeWorkspace, wsPath, wsScripts, out); err != nil {
 			return err
 		}
 	}

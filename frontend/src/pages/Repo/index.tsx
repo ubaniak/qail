@@ -2,12 +2,13 @@
 // no edit form because repos are immutable name+url pairs.
 
 import { GithubOutlined } from "@ant-design/icons";
-import { Alert } from "antd";
+import { Alert, Tag } from "antd";
 import { useState } from "react";
 import ToolboxListItem from "../../component/Toolbox/ListItem";
 import { IndexableLayout, ScrollableLayout } from "../../layouts";
 import { useQailService } from "../../providers/qailservice";
 import { AddRepo } from "./add";
+import { EditRepo } from "./edit";
 import { RemoveRepo } from "./remove";
 
 export const RepoIndex = () => {
@@ -15,8 +16,11 @@ export const RepoIndex = () => {
   const [query, setQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [toRemove, setToRemove] = useState<string | undefined>();
+  const [toEdit, setToEdit] = useState<string | undefined>();
 
   if (showAdd) return <AddRepo onClose={() => setShowAdd(false)} />;
+  if (toEdit)
+    return <EditRepo name={toEdit} onClose={() => setToEdit(undefined)} />;
   if (toRemove)
     return <RemoveRepo name={toRemove} onClose={() => setToRemove(undefined)} />;
 
@@ -39,18 +43,32 @@ export const RepoIndex = () => {
         />
       );
     }
-    return filtered.map(([name, repo]) => (
-      <ToolboxListItem
-        key={name}
-        id={name}
-        primary={name}
-        secondary={repo.url}
-        icon={<GithubOutlined />}
-        menuItems={[
-          { label: "Remove", danger: true, onClick: (id) => setToRemove(id) },
-        ]}
-      />
-    ));
+    return filtered.map(([name, repo]) => {
+      const postCount = (repo.postInstall ?? []).length;
+      return (
+        <ToolboxListItem
+          key={name}
+          id={name}
+          primary={
+            <div className="flex items-center gap-2">
+              <span>{name}</span>
+              {postCount > 0 && (
+                <Tag color="purple" className="!text-[10px] !leading-4 !m-0">
+                  {postCount} post-install
+                </Tag>
+              )}
+            </div>
+          }
+          secondary={repo.url}
+          icon={<GithubOutlined />}
+          menuItems={[
+            { label: "Edit post-install", onClick: (id) => setToEdit(id) },
+            { label: "Remove", danger: true, onClick: (id) => setToRemove(id) },
+          ]}
+          onClick={() => setToEdit(name)}
+        />
+      );
+    });
   };
 
   return (

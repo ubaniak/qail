@@ -89,6 +89,7 @@ func TestTouchWorkspaceMissing(t *testing.T) {
 }
 
 func TestSetWorkspacePostInstallReplacesAndClears(t *testing.T) {
+	seedScopedScripts(t, "workspace", "new.sh", "extra.sh")
 	s := config.NewMemoryStoreFrom(config.Config{
 		PostInstallScripts: config.PostInstallScripts{
 			Workspace: map[string][]string{"alpha": {"old.sh"}},

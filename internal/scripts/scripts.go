@@ -16,12 +16,28 @@ import (
 	"github.com/ubaniak/qail/internal/runner"
 )
 
+// Scope tags a script as workspace-level or repo-level post-install. The
+// value also names the on-disk subdirectory under scriptsDir.
+type Scope string
+
+const (
+	ScopeWorkspace Scope = "workspace"
+	ScopeRepo      Scope = "repo"
+)
+
+// Valid reports whether the scope is one of the recognised values.
+func (s Scope) Valid() bool {
+	return s == ScopeWorkspace || s == ScopeRepo
+}
+
 // Runner is the narrow subprocess interface the scripts module needs.
 type Runner interface {
 	Run(ctx context.Context, cmd runner.Command) (runner.Result, error)
 }
 
-// Scripts manages bash scripts stored in scriptsDir.
+// Scripts manages bash scripts stored under scriptsDir. Each script
+// lives in scriptsDir/<scope>/<name>.sh; the scope subdirectories are
+// created by qailhome.Default() so this package can assume they exist.
 type Scripts struct {
 	r          Runner
 	scriptsDir string
@@ -38,9 +54,6 @@ func New(r Runner, scriptsDir string) *Scripts {
 func Default() *Scripts {
 	h, err := qailhome.Default()
 	if err != nil {
-		// qailhome creation failure is fatal for production callers; keep
-		// the previous panic-on-init behaviour by returning a Scripts
-		// pointed at a path that will fail on first use.
 		return &Scripts{r: runner.NewOS()}
 	}
 	return New(runner.NewOS(), h.ScriptsDir())
@@ -51,9 +64,9 @@ func SortScripts(scripts []string) []string {
 	return scripts
 }
 
-// GetScriptDir returns the configured scripts directory. It exists for
-// callers that want to display or change directory to the path; mutation
-// happens through the Scripts methods, never via this string.
+// GetScriptDir returns the configured scripts root directory. It exists
+// for callers that want to display the path; mutation happens through
+// the scoped methods below.
 func (s *Scripts) GetScriptDir() (string, error) {
 	if s.scriptsDir == "" {
 		return "", fmt.Errorf("scripts directory not configured")
@@ -61,27 +74,43 @@ func (s *Scripts) GetScriptDir() (string, error) {
 	return s.scriptsDir, nil
 }
 
-// CreateBashScript generates a bash script with a specified name
-func (s *Scripts) CreateBashScript(scriptName string) error {
+// ScopeDir returns the on-disk directory holding scripts of the given
+// scope. Errors when the scripts root is unset or the scope is invalid.
+func (s *Scripts) ScopeDir(scope Scope) (string, error) {
+	if s.scriptsDir == "" {
+		return "", fmt.Errorf("scripts directory not configured")
+	}
+	if !scope.Valid() {
+		return "", fmt.Errorf("invalid scope: %q", scope)
+	}
+	return filepath.Join(s.scriptsDir, string(scope)), nil
+}
+
+// CreateBashScript creates a new bash script in the given scope's
+// directory. The `.sh` suffix is added if missing.
+func (s *Scripts) CreateBashScript(scriptName string, scope Scope) error {
 	scriptContent := `#!/bin/bash
 
 # Add your custom logic here
 ls -l
 `
 
-	scriptsDir, err := s.GetScriptDir()
+	scopeDir, err := s.ScopeDir(scope)
 	if err != nil {
 		return err
+	}
+	if err := os.MkdirAll(scopeDir, 0755); err != nil {
+		return fmt.Errorf("failed to ensure scope dir: %v", err)
 	}
 
 	if len(scriptName) < 3 || scriptName[len(scriptName)-3:] != ".sh" {
 		scriptName += ".sh"
 	}
 
-	scriptPath := filepath.Join(scriptsDir, scriptName)
+	scriptPath := filepath.Join(scopeDir, scriptName)
 
 	if _, err := os.Stat(scriptPath); err == nil {
-		return fmt.Errorf("script '%s' already exists in directory '%s'", scriptName, scriptsDir)
+		return fmt.Errorf("script '%s' already exists in scope '%s'", scriptName, scope)
 	}
 
 	file, err := os.Create(scriptPath)
@@ -90,56 +119,99 @@ ls -l
 	}
 	defer file.Close()
 
-	_, err = file.WriteString(scriptContent)
-	if err != nil {
+	if _, err = file.WriteString(scriptContent); err != nil {
 		return fmt.Errorf("failed to write to script file: %v", err)
 	}
 
-	err = os.Chmod(scriptPath, 0755)
-	if err != nil {
+	if err = os.Chmod(scriptPath, 0755); err != nil {
 		return fmt.Errorf("failed to make script executable: %v", err)
 	}
 
 	return nil
 }
 
-func validateScriptPath(scriptsDir, scriptPath string) error {
+// validateScopedPath ensures abs(scriptPath) lives under scopeDir. Guards
+// against path-traversal in callers that accept user-supplied script names.
+func validateScopedPath(scopeDir, scriptPath string) error {
 	abs, err := filepath.Abs(scriptPath)
 	if err != nil {
 		return fmt.Errorf("invalid script path: %v", err)
 	}
-	if !strings.HasPrefix(abs, scriptsDir+string(filepath.Separator)) {
-		return fmt.Errorf("script path escapes scripts directory: %s", abs)
+	if !strings.HasPrefix(abs, scopeDir+string(filepath.Separator)) {
+		return fmt.Errorf("script path escapes scope directory: %s", abs)
 	}
 	return nil
 }
 
-func (s *Scripts) RemoveScript(scriptName string) error {
-	scriptsDir, err := s.GetScriptDir()
+// RemoveScript deletes scriptName from the given scope's directory.
+func (s *Scripts) RemoveScript(scriptName string, scope Scope) error {
+	scopeDir, err := s.ScopeDir(scope)
 	if err != nil {
 		return err
 	}
-	scriptPath := filepath.Join(scriptsDir, scriptName)
-	if err := validateScriptPath(scriptsDir, scriptPath); err != nil {
+	scriptPath := filepath.Join(scopeDir, scriptName)
+	if err := validateScopedPath(scopeDir, scriptPath); err != nil {
 		return err
 	}
 	return os.Remove(scriptPath)
+}
+
+// ReadScript returns the textual contents of scriptName under scope.
+// View-only consumers (the desktop UI) call this to preview a script;
+// mutation goes through Open + the user's editor.
+func (s *Scripts) ReadScript(scriptName string, scope Scope) (string, error) {
+	scopeDir, err := s.ScopeDir(scope)
+	if err != nil {
+		return "", err
+	}
+	scriptPath := filepath.Join(scopeDir, scriptName)
+	if err := validateScopedPath(scopeDir, scriptPath); err != nil {
+		return "", err
+	}
+	b, err := os.ReadFile(scriptPath)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// WriteScript replaces the on-disk contents of scriptName under scope.
+// Requires the script to already exist so the UI cannot bypass
+// CreateBashScript's name validation and scope-bucketing.
+func (s *Scripts) WriteScript(scriptName string, scope Scope, contents string) error {
+	scopeDir, err := s.ScopeDir(scope)
+	if err != nil {
+		return err
+	}
+	scriptPath := filepath.Join(scopeDir, scriptName)
+	if err := validateScopedPath(scopeDir, scriptPath); err != nil {
+		return err
+	}
+	info, err := os.Stat(scriptPath)
+	if err != nil {
+		return err
+	}
+	mode := info.Mode().Perm()
+	if err := os.WriteFile(scriptPath, []byte(contents), mode); err != nil {
+		return fmt.Errorf("failed to write script: %v", err)
+	}
+	return nil
 }
 
 // RunBashScript runs scriptName under ctx in dir. Stdout/stderr captured
 // from the subprocess are echoed to w (defaulting to os.Stdout when nil)
 // preceded by a header so HTTP/SSE callers can stream output without
 // touching the actual terminal.
-func (s *Scripts) RunBashScript(ctx context.Context, scriptName, dir string, w io.Writer) error {
+func (s *Scripts) RunBashScript(ctx context.Context, scope Scope, scriptName, dir string, w io.Writer) error {
 	if w == nil {
 		w = os.Stdout
 	}
-	scriptsDir, err := s.GetScriptDir()
+	scopeDir, err := s.ScopeDir(scope)
 	if err != nil {
 		return err
 	}
-	scriptPath := filepath.Join(scriptsDir, scriptName)
-	if err := validateScriptPath(scriptsDir, scriptPath); err != nil {
+	scriptPath := filepath.Join(scopeDir, scriptName)
+	if err := validateScopedPath(scopeDir, scriptPath); err != nil {
 		return err
 	}
 
@@ -160,47 +232,55 @@ func (s *Scripts) RunBashScript(ctx context.Context, scriptName, dir string, w i
 	return err
 }
 
-// Has reports whether a script with the given name exists in the scripts
-// directory. Used by callers that want to fail fast on a typo before
-// running confirm prompts; the domain owns this check so cmd handlers do
-// not reach into ListScripts to roll their own.
-func (s *Scripts) Has(name string) (bool, error) {
-	all, err := s.ListScripts()
+// Has reports whether a script with the given name exists in the scope.
+func (s *Scripts) Has(scope Scope, name string) (bool, error) {
+	all, err := s.ListScripts(scope)
 	if err != nil {
 		return false, err
 	}
 	return slices.Contains(all, name), nil
 }
 
-func (s *Scripts) ListScripts() ([]string, error) {
-	scriptsDir, err := s.GetScriptDir()
+// ListScripts returns the sorted file names in the given scope's directory.
+func (s *Scripts) ListScripts(scope Scope) ([]string, error) {
+	scopeDir, err := s.ScopeDir(scope)
 	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(scopeDir, 0755); err != nil {
 		return nil, err
 	}
 
-	files, err := os.ReadDir(scriptsDir)
+	files, err := os.ReadDir(scopeDir)
 	if err != nil {
 		return nil, err
 	}
-	scriptNames := make([]string, len(files))
-	for i, file := range files {
-		scriptNames[i] = file.Name()
+	scriptNames := make([]string, 0, len(files))
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		scriptNames = append(scriptNames, file.Name())
 	}
 
 	return SortScripts(scriptNames), nil
 }
 
-func (s *Scripts) Open(ctx context.Context, editor, scriptName string) error {
+// Open invokes editor against scriptName in scope.
+func (s *Scripts) Open(ctx context.Context, editor string, scope Scope, scriptName string) error {
 	if editor == "" {
 		return errors.New("no editor selected ... ")
 	}
 
-	scriptDir, err := s.GetScriptDir()
+	scopeDir, err := s.ScopeDir(scope)
 	if err != nil {
 		return err
 	}
 
-	scriptPath := filepath.Join(scriptDir, scriptName)
+	scriptPath := filepath.Join(scopeDir, scriptName)
+	if err := validateScopedPath(scopeDir, scriptPath); err != nil {
+		return err
+	}
 
 	_, err = s.r.Run(ctx, runner.Command{
 		Name: editor,

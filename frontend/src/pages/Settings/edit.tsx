@@ -20,6 +20,22 @@ export const EditRoot = ({ root: initialRoot, onClose }: EditRootProps) => {
 
   return (
     <div className="flex flex-col h-full p-3 gap-3">
+      <div className="flex justify-end gap-2">
+        <QButton variant="cancel" onClick={onClose}>
+          Cancel
+        </QButton>
+        <QButton
+          variant="accent"
+          disabled={!valid || !changed}
+          onClick={() => {
+            save.root(root.trim());
+            onClose();
+          }}
+        >
+          Save
+        </QButton>
+      </div>
+
       <div>
         <div className="text-zinc-100 text-base font-semibold">Edit root</div>
         <div className="text-zinc-400 text-xs">
@@ -40,24 +56,6 @@ export const EditRoot = ({ root: initialRoot, onClose }: EditRootProps) => {
           All workspace clones live under this directory.
         </div>
       </div>
-
-      <div className="flex-1" />
-
-      <div className="flex justify-end gap-2">
-        <QButton variant="cancel" onClick={onClose}>
-          Cancel
-        </QButton>
-        <QButton
-          variant="accent"
-          disabled={!valid || !changed}
-          onClick={() => {
-            save.root(root.trim());
-            onClose();
-          }}
-        >
-          Save
-        </QButton>
-      </div>
     </div>
   );
 };
@@ -75,6 +73,22 @@ export const AddEditor = ({ onClose }: AddEditorProps) => {
 
   return (
     <div className="flex flex-col h-full p-3 gap-3">
+      <div className="flex justify-end gap-2">
+        <QButton variant="cancel" onClick={onClose}>
+          Cancel
+        </QButton>
+        <QButton
+          variant="accent"
+          disabled={!valid}
+          onClick={() => {
+            editors.add(name.trim(), command.trim());
+            onClose();
+          }}
+        >
+          Add
+        </QButton>
+      </div>
+
       <div>
         <div className="text-zinc-100 text-base font-semibold">Add editor</div>
         <div className="text-zinc-400 text-xs">
@@ -107,24 +121,6 @@ export const AddEditor = ({ onClose }: AddEditorProps) => {
           Examples: <code>code</code>, <code>cursor</code>, <code>idea</code>,
           full paths OK.
         </div>
-      </div>
-
-      <div className="flex-1" />
-
-      <div className="flex justify-end gap-2">
-        <QButton variant="cancel" onClick={onClose}>
-          Cancel
-        </QButton>
-        <QButton
-          variant="accent"
-          disabled={!valid}
-          onClick={() => {
-            editors.add(name.trim(), command.trim());
-            onClose();
-          }}
-        >
-          Add
-        </QButton>
       </div>
     </div>
   );

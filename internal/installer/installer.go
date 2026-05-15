@@ -34,9 +34,10 @@ type GitClient interface {
 }
 
 // ScriptsClient is the narrow consumer interface for executing a named
-// post-install script. *scripts.Scripts satisfies it.
+// post-install script. *scripts.Scripts satisfies it. Scope selects the
+// scripts/<scope>/ subdirectory the name resolves under.
 type ScriptsClient interface {
-	RunBashScript(ctx context.Context, scriptName, dir string, w io.Writer) error
+	RunBashScript(ctx context.Context, scope scripts.Scope, scriptName, dir string, w io.Writer) error
 }
 
 // Installer wires a GitClient + ScriptsClient.
@@ -79,15 +80,17 @@ func (i *Installer) Install(ctx context.Context, spec PackageSpec, w io.Writer) 
 	if len(spec.PostInstall) > 0 {
 		fmt.Fprintf(w, "Running post install scripts for %s: %s\n", color.Green("repos"), color.Cyan(spec.Name))
 	}
-	return i.RunPostInstall(ctx, spec.Dest, spec.PostInstall, w)
+	return i.RunPostInstall(ctx, scripts.ScopeRepo, spec.Dest, spec.PostInstall, w)
 }
 
-// RunPostInstall runs the given scripts against dir, fail-fast.
-func (i *Installer) RunPostInstall(ctx context.Context, dir string, scripts []string, w io.Writer) error {
+// RunPostInstall runs the given scripts against dir, fail-fast. scope
+// selects which script directory the names resolve under so the same
+// installer can drive both per-repo and per-workspace flows.
+func (i *Installer) RunPostInstall(ctx context.Context, scope scripts.Scope, dir string, names []string, w io.Writer) error {
 	w = orStdout(w)
-	for _, s := range scripts {
+	for _, s := range names {
 		fmt.Fprintf(w, "   * Running post install script: %s\n", color.Cyan(s))
-		if err := i.scripts.RunBashScript(ctx, s, dir, w); err != nil {
+		if err := i.scripts.RunBashScript(ctx, scope, s, dir, w); err != nil {
 			return fmt.Errorf("post-install script %s: %w", s, err)
 		}
 	}

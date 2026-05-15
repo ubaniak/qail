@@ -13,7 +13,7 @@
 // then add it here so the type-check covers the call site.
 
 import * as B from "../../bindings/github.com/ubaniak/qail/internal/app/bindings.js";
-import type { models, WorkspaceMap, RepoMap } from "../types";
+import type { models, WorkspaceMap, RepoMap, Scope } from "../types";
 
 export type Bindings = {
   GetConfig: () => Promise<models.ConfigDTO>;
@@ -29,7 +29,7 @@ export type Bindings = {
   SetRepoPostInstall: (repo: string, scripts: string[]) => Promise<void>;
 
   ListWorkspaces: () => Promise<WorkspaceMap>;
-  AddWorkspace: (name: string, packages: string[]) => Promise<void>;
+  AddWorkspace: (name: string, packages: string[], postInstall: string[]) => Promise<void>;
   EditWorkspace: (name: string, packages: string[]) => Promise<void>;
   CloneWorkspace: (dst: string, packages: string[]) => Promise<void>;
   CreateWorkspaceOnDisk: (name: string) => Promise<void>;
@@ -43,10 +43,14 @@ export type Bindings = {
   OpenEditorWith: (name: string, editor: string) => Promise<void>;
   ExplorePath: (name: string) => Promise<string>;
 
-  ListScripts: () => Promise<string[]>;
-  AddScript: (name: string) => Promise<void>;
-  RemoveScript: (name: string) => Promise<void>;
+  ListScripts: (scope: Scope) => Promise<string[]>;
+  AddScript: (name: string, scope: Scope) => Promise<void>;
+  RemoveScript: (name: string, scope: Scope) => Promise<void>;
+  ReadScript: (name: string, scope: Scope) => Promise<string>;
+  WriteScript: (name: string, scope: Scope, contents: string) => Promise<void>;
   ScriptsDir: () => Promise<string>;
+  RunWorkspaceScript: (workspace: string, script: string) => Promise<void>;
+  RunRepoScript: (workspace: string, repo: string, script: string) => Promise<void>;
 
   ListMuxSessions: () => Promise<string[]>;
   RemoveMuxSession: (name: string) => Promise<void>;
@@ -70,7 +74,7 @@ export const api: Bindings = {
   SetRepoPostInstall: (repo, s) => wrap(B.SetRepoPostInstall(repo, s)),
 
   ListWorkspaces: () => wrap(B.ListWorkspaces()) as Promise<WorkspaceMap>,
-  AddWorkspace: (name, pkgs) => wrap(B.AddWorkspace(name, pkgs)),
+  AddWorkspace: (name, pkgs, postInstall) => wrap(B.AddWorkspace(name, pkgs, postInstall)),
   EditWorkspace: (name, pkgs) => wrap(B.EditWorkspace(name, pkgs)),
   CloneWorkspace: (dst, pkgs) => wrap(B.CloneWorkspace(dst, pkgs)),
   CreateWorkspaceOnDisk: (name) => wrap(B.CreateWorkspaceOnDisk(name)),
@@ -85,10 +89,14 @@ export const api: Bindings = {
   OpenEditorWith: (name, editor) => wrap(B.OpenEditorWith(name, editor)),
   ExplorePath: (name) => wrap(B.ExplorePath(name)),
 
-  ListScripts: () => wrap(B.ListScripts()),
-  AddScript: (name) => wrap(B.AddScript(name)),
-  RemoveScript: (name) => wrap(B.RemoveScript(name)),
+  ListScripts: (scope) => wrap(B.ListScripts(scope)),
+  AddScript: (name, scope) => wrap(B.AddScript(name, scope)),
+  RemoveScript: (name, scope) => wrap(B.RemoveScript(name, scope)),
+  ReadScript: (name, scope) => wrap(B.ReadScript(name, scope)),
+  WriteScript: (name, scope, contents) => wrap(B.WriteScript(name, scope, contents)),
   ScriptsDir: () => wrap(B.ScriptsDir()),
+  RunWorkspaceScript: (ws, script) => wrap(B.RunWorkspaceScript(ws, script)),
+  RunRepoScript: (ws, repo, script) => wrap(B.RunRepoScript(ws, repo, script)),
 
   ListMuxSessions: () => wrap(B.ListMuxSessions()),
   RemoveMuxSession: (name) => wrap(B.RemoveMuxSession(name)),

@@ -317,7 +317,7 @@ var (
 			// list creates an empty workspace, matching what the TUI
 			// allows when no packages are selected).
 			if name := firstArg(args); name != "" {
-				if err := actions.AddWorkspace(context.Background(), s, name, wsAddRepos, nil); err != nil {
+				if err := actions.AddWorkspace(context.Background(), s, name, wsAddRepos, nil, nil); err != nil {
 					log.Fatalln(err)
 				}
 				return
@@ -334,7 +334,7 @@ var (
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if err := actions.AddWorkspace(context.Background(), s, r.Name, r.Packages, nil); err != nil {
+			if err := actions.AddWorkspace(context.Background(), s, r.Name, r.Packages, nil, nil); err != nil {
 				log.Fatalln(err)
 			}
 		},
@@ -441,7 +441,7 @@ var (
 			}
 			selected := postInstall[name]
 
-			scriptList, err := scripts.Default().ListScripts()
+			scriptList, err := scripts.Default().ListScripts(scripts.ScopeWorkspace)
 			if err != nil {
 				log.Fatalln(err)
 			}

@@ -28,6 +28,22 @@ export const AddRepo = ({ onClose }: AddRepoProps) => {
 
   return (
     <div className="flex flex-col h-full p-3 gap-3">
+      <div className="flex justify-end gap-2">
+        <QButton variant="cancel" onClick={onClose}>
+          Cancel
+        </QButton>
+        <QButton
+          variant="accent"
+          disabled={!valid}
+          onClick={() => {
+            create.repo(name.trim(), url.trim());
+            onClose();
+          }}
+        >
+          Add
+        </QButton>
+      </div>
+
       <div>
         <div className="text-zinc-100 text-base font-semibold">Add repo</div>
         <div className="text-zinc-400 text-xs">
@@ -52,24 +68,6 @@ export const AddRepo = ({ onClose }: AddRepoProps) => {
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-      </div>
-
-      <div className="flex-1" />
-
-      <div className="flex justify-end gap-2">
-        <QButton variant="cancel" onClick={onClose}>
-          Cancel
-        </QButton>
-        <QButton
-          variant="accent"
-          disabled={!valid}
-          onClick={() => {
-            create.repo(name.trim(), url.trim());
-            onClose();
-          }}
-        >
-          Add
-        </QButton>
       </div>
     </div>
   );

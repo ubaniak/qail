@@ -109,6 +109,7 @@ func TestRemoveReposEmptyIsNoop(t *testing.T) {
 }
 
 func TestSetRepoPostInstallReplacesList(t *testing.T) {
+	seedScopedScripts(t, "repo", "new1.sh", "new2.sh")
 	s := config.NewMemoryStoreFrom(config.Config{
 		PostInstallScripts: config.PostInstallScripts{
 			Repo: map[string][]string{

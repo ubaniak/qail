@@ -38,23 +38,26 @@ export function AddRepo(name, url) {
 
 /**
  * @param {string} name
+ * @param {string} scope
  * @returns {$CancellablePromise<void>}
  */
-export function AddScript(name) {
-    return $Call.ByID(876666543, name);
+export function AddScript(name, scope) {
+    return $Call.ByID(876666543, name, scope);
 }
 
 /**
  * AddWorkspace creates a workspace and streams progress as custom Wails
  * events. The pipe + scanner mirrors what the SSE handler does for HTTP:
  * each line becomes one "workspace:progress" event; the outcome is
- * "workspace:done" or "workspace:error".
+ * "workspace:done" or "workspace:error". postInstall optionally attaches
+ * workspace-scoped scripts to the new workspace before the build runs.
  * @param {string} name
  * @param {string[]} packages
+ * @param {string[]} postInstall
  * @returns {$CancellablePromise<void>}
  */
-export function AddWorkspace(name, packages) {
-    return $Call.ByID(1283457793, name, packages);
+export function AddWorkspace(name, packages, postInstall) {
+    return $Call.ByID(1283457793, name, packages, postInstall);
 }
 
 /**
@@ -141,10 +144,11 @@ export function ListRepos() {
 }
 
 /**
+ * @param {string} scope
  * @returns {$CancellablePromise<string[]>}
  */
-export function ListScripts() {
-    return $Call.ByID(4015175911).then(/** @type {($result: any) => any} */(($result) => {
+export function ListScripts(scope) {
+    return $Call.ByID(4015175911, scope).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType1($result);
     }));
 }
@@ -202,6 +206,17 @@ export function OpenEditorWith(name, editor) {
 }
 
 /**
+ * ReadScript returns the on-disk contents of the named script so the UI
+ * can preview it without delegating to an external editor.
+ * @param {string} name
+ * @param {string} scope
+ * @returns {$CancellablePromise<string>}
+ */
+export function ReadScript(name, scope) {
+    return $Call.ByID(3261568490, name, scope);
+}
+
+/**
  * @param {string} name
  * @returns {$CancellablePromise<void>}
  */
@@ -227,10 +242,11 @@ export function RemoveRepos(names) {
 
 /**
  * @param {string} name
+ * @param {string} scope
  * @returns {$CancellablePromise<void>}
  */
-export function RemoveScript(name) {
-    return $Call.ByID(791188114, name);
+export function RemoveScript(name, scope) {
+    return $Call.ByID(791188114, name, scope);
 }
 
 /**
@@ -239,6 +255,32 @@ export function RemoveScript(name) {
  */
 export function RemoveWorkspace(name) {
     return $Call.ByID(2259163742, name);
+}
+
+/**
+ * RunRepoScript streams a repo-scoped script execution against
+ * workspace/repo. workspace is required because the script runs inside
+ * the repo's clone path under that workspace's root.
+ * @param {string} workspace
+ * @param {string} repo
+ * @param {string} script
+ * @returns {$CancellablePromise<void>}
+ */
+export function RunRepoScript(workspace, repo, script) {
+    return $Call.ByID(4288504941, workspace, repo, script);
+}
+
+/**
+ * RunWorkspaceScript streams a workspace-scoped script execution against
+ * the named workspace's on-disk path. Progress flows through the same
+ * custom-event channel as workspace creation so the existing
+ * ProgressDrawer subscribes once.
+ * @param {string} workspace
+ * @param {string} script
+ * @returns {$CancellablePromise<void>}
+ */
+export function RunWorkspaceScript(workspace, script) {
+    return $Call.ByID(264979084, workspace, script);
 }
 
 /**
@@ -289,6 +331,18 @@ export function SetWorkspaceEditor(workspace, name) {
  */
 export function SetWorkspacePostInstall(name, scriptsList) {
     return $Call.ByID(1356373713, name, scriptsList);
+}
+
+/**
+ * WriteScript replaces the contents of an existing script so the UI can
+ * edit a script in place without shelling out to an external editor.
+ * @param {string} name
+ * @param {string} scope
+ * @param {string} contents
+ * @returns {$CancellablePromise<void>}
+ */
+export function WriteScript(name, scope, contents) {
+    return $Call.ByID(3999736359, name, scope, contents);
 }
 
 // Private type creation functions

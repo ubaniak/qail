@@ -12,6 +12,7 @@ package app
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -165,10 +166,11 @@ func (b *Bindings) ListWorkspaces() (map[string]WorkspaceDTO, error) {
 // AddWorkspace creates a workspace and streams progress as custom Wails
 // events. The pipe + scanner mirrors what the SSE handler does for HTTP:
 // each line becomes one "workspace:progress" event; the outcome is
-// "workspace:done" or "workspace:error".
-func (b *Bindings) AddWorkspace(name string, packages []string) error {
+// "workspace:done" or "workspace:error". postInstall optionally attaches
+// workspace-scoped scripts to the new workspace before the build runs.
+func (b *Bindings) AddWorkspace(name string, packages []string, postInstall []string) error {
 	return b.streamWorkspace(func(out io.Writer) error {
-		return actions.AddWorkspace(b.ctx, b.store, name, packages, out)
+		return actions.AddWorkspace(b.ctx, b.store, name, packages, postInstall, out)
 	})
 }
 
@@ -251,20 +253,82 @@ func (b *Bindings) ExplorePath(name string) (string, error) {
 
 // --- scripts ----------------------------------------------------------------
 
-func (b *Bindings) ListScripts() ([]string, error) {
-	return scripts.Default().ListScripts()
+// parseScope turns the JS-side string into a scripts.Scope, erroring on
+// any unrecognised value so the binding never silently writes the wrong
+// bucket.
+func parseScope(scope string) (scripts.Scope, error) {
+	s := scripts.Scope(scope)
+	if !s.Valid() {
+		return "", fmt.Errorf("invalid scope %q (want %q or %q)", scope, scripts.ScopeWorkspace, scripts.ScopeRepo)
+	}
+	return s, nil
 }
 
-func (b *Bindings) AddScript(name string) error {
-	return scripts.Default().CreateBashScript(name)
+func (b *Bindings) ListScripts(scope string) ([]string, error) {
+	s, err := parseScope(scope)
+	if err != nil {
+		return nil, err
+	}
+	return scripts.Default().ListScripts(s)
 }
 
-func (b *Bindings) RemoveScript(name string) error {
-	return scripts.Default().RemoveScript(name)
+func (b *Bindings) AddScript(name, scope string) error {
+	s, err := parseScope(scope)
+	if err != nil {
+		return err
+	}
+	return scripts.Default().CreateBashScript(name, s)
+}
+
+func (b *Bindings) RemoveScript(name, scope string) error {
+	s, err := parseScope(scope)
+	if err != nil {
+		return err
+	}
+	return scripts.Default().RemoveScript(name, s)
+}
+
+// ReadScript returns the on-disk contents of the named script so the UI
+// can preview it without delegating to an external editor.
+func (b *Bindings) ReadScript(name, scope string) (string, error) {
+	s, err := parseScope(scope)
+	if err != nil {
+		return "", err
+	}
+	return scripts.Default().ReadScript(name, s)
+}
+
+// WriteScript replaces the contents of an existing script so the UI can
+// edit a script in place without shelling out to an external editor.
+func (b *Bindings) WriteScript(name, scope, contents string) error {
+	s, err := parseScope(scope)
+	if err != nil {
+		return err
+	}
+	return scripts.Default().WriteScript(name, s, contents)
 }
 
 func (b *Bindings) ScriptsDir() (string, error) {
 	return scripts.Default().GetScriptDir()
+}
+
+// RunWorkspaceScript streams a workspace-scoped script execution against
+// the named workspace's on-disk path. Progress flows through the same
+// custom-event channel as workspace creation so the existing
+// ProgressDrawer subscribes once.
+func (b *Bindings) RunWorkspaceScript(workspace, script string) error {
+	return b.streamWorkspace(func(out io.Writer) error {
+		return actions.RunWorkspaceScript(b.ctx, b.store, workspace, script, out)
+	})
+}
+
+// RunRepoScript streams a repo-scoped script execution against
+// workspace/repo. workspace is required because the script runs inside
+// the repo's clone path under that workspace's root.
+func (b *Bindings) RunRepoScript(workspace, repo, script string) error {
+	return b.streamWorkspace(func(out io.Writer) error {
+		return actions.RunRepoScript(b.ctx, b.store, workspace, repo, script, out)
+	})
 }
 
 // --- tmux -------------------------------------------------------------------

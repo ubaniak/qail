@@ -18,12 +18,14 @@ export type CallServiceResult<T> = {
 
 export const callService = <T,>(
   props: CallServiceProps<T>,
-  initial: T
+  initial: T,
+  depsKey?: unknown
 ): CallServiceResult<T> => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | undefined>(undefined);
   const [result, setResult] = useState<T>(initial);
   const [refreshKey, setRefreshKey] = useState(0);
+  const depsSig = depsKey === undefined ? "" : JSON.stringify(depsKey);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +46,7 @@ export const callService = <T,>(
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey]);
+  }, [refreshKey, depsSig]);
 
   return {
     loading,

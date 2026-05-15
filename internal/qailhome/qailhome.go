@@ -17,6 +17,7 @@ package qailhome
 import (
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Home is the qail home directory and the well-known paths derived from it.
@@ -31,9 +32,11 @@ func New(root string) Home {
 }
 
 // Default returns the production Home. It reads $QAIL_HOME if set,
-// otherwise falls back to $HOME/.qail. Both the home root and ScriptsDir()
-// are created on disk if missing so that downstream callers (config.Store,
-// scripts.Scripts) can assume the layout exists.
+// otherwise falls back to $HOME/.qail. The home root, ScriptsDir, and
+// per-scope script subdirectories are created on disk if missing so that
+// downstream callers (config.Store, scripts.Scripts) can assume the
+// layout exists. Legacy flat scripts under ScriptsDir are migrated into
+// the workspace subdir on first Default() call (see migrateLegacyScripts).
 func Default() (Home, error) {
 	root, err := resolveRoot()
 	if err != nil {
@@ -44,6 +47,15 @@ func Default() (Home, error) {
 		return Home{}, err
 	}
 	if err := os.MkdirAll(h.ScriptsDir(), 0755); err != nil {
+		return Home{}, err
+	}
+	if err := os.MkdirAll(h.WorkspaceScriptsDir(), 0755); err != nil {
+		return Home{}, err
+	}
+	if err := os.MkdirAll(h.RepoScriptsDir(), 0755); err != nil {
+		return Home{}, err
+	}
+	if err := migrateLegacyScripts(h); err != nil {
 		return Home{}, err
 	}
 	return h, nil
@@ -63,9 +75,50 @@ func resolveRoot() (string, error) {
 // DBPath returns the on-disk path of the SQLite config database.
 func (h Home) DBPath() string { return filepath.Join(h.root, "qail.db") }
 
-// ScriptsDir returns the directory holding user-managed bash scripts.
+// ScriptsDir returns the root directory holding user-managed bash scripts.
+// Individual scripts live under the workspace/ or repo/ subdirs accessed
+// via WorkspaceScriptsDir / RepoScriptsDir.
 func (h Home) ScriptsDir() string { return filepath.Join(h.root, "scripts") }
+
+// WorkspaceScriptsDir is the bucket for workspace-scoped post-install
+// scripts.
+func (h Home) WorkspaceScriptsDir() string {
+	return filepath.Join(h.ScriptsDir(), "workspace")
+}
+
+// RepoScriptsDir is the bucket for repo-scoped post-install scripts.
+func (h Home) RepoScriptsDir() string {
+	return filepath.Join(h.ScriptsDir(), "repo")
+}
 
 // LegacyJSONPath returns the on-disk path of the pre-SQLite config.json,
 // used only by the one-shot `qail config convert` migration.
 func (h Home) LegacyJSONPath() string { return filepath.Join(h.root, "config.json") }
+
+// migrateLegacyScripts moves any .sh file living at the root of
+// ScriptsDir into WorkspaceScriptsDir. Predates the scope split, when
+// scripts only ever ran as workspace post-install. Idempotent: if a
+// file already exists at the destination it is left in place.
+func migrateLegacyScripts(h Home) error {
+	entries, err := os.ReadDir(h.ScriptsDir())
+	if err != nil {
+		return nil
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(e.Name(), ".sh") {
+			continue
+		}
+		src := filepath.Join(h.ScriptsDir(), e.Name())
+		dst := filepath.Join(h.WorkspaceScriptsDir(), e.Name())
+		if _, err := os.Stat(dst); err == nil {
+			continue
+		}
+		if err := os.Rename(src, dst); err != nil {
+			return err
+		}
+	}
+	return nil
+}

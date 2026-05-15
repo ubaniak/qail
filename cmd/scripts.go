@@ -15,6 +15,22 @@ import (
 	"github.com/ubaniak/qail/internal/scripts"
 )
 
+// scriptScope is the shared flag value bound to every scripts subcommand
+// that needs to disambiguate workspace vs repo buckets. Defaults to
+// workspace so existing CLI invocations continue to act on the workspace
+// post-install scripts.
+var scriptScope string
+
+// resolveScope maps the --scope flag to a scripts.Scope, erroring out on
+// an unknown value so the CLI never silently writes into the wrong bucket.
+func resolveScope() scripts.Scope {
+	s := scripts.Scope(scriptScope)
+	if !s.Valid() {
+		log.Fatalf("invalid --scope %q (want %q or %q)\n", scriptScope, scripts.ScopeWorkspace, scripts.ScopeRepo)
+	}
+	return s
+}
+
 var (
 	scriptsCmd = &cobra.Command{
 		Use:     "scripts",
@@ -37,6 +53,7 @@ var (
 		Aliases: []string{"a"},
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			scope := resolveScope()
 			name := firstArg(args)
 			if name == "" {
 				if err := requireTTY("script name"); err != nil {
@@ -48,7 +65,7 @@ var (
 				}
 				name = n
 			}
-			if err := scripts.Default().CreateBashScript(name); err != nil {
+			if err := scripts.Default().CreateBashScript(name, scope); err != nil {
 				log.Fatalln(err)
 			}
 		},
@@ -57,7 +74,8 @@ var (
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Run: func(cmd *cobra.Command, args []string) {
-			scriptList, err := scripts.Default().ListScripts()
+			scope := resolveScope()
+			scriptList, err := scripts.Default().ListScripts(scope)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -69,6 +87,7 @@ var (
 		Aliases: []string{"o"},
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			scope := resolveScope()
 			editor, err := actions.DefaultEditorCommand(mustStore())
 			if err != nil {
 				log.Fatalln(err)
@@ -79,14 +98,14 @@ var (
 			sc := scripts.Default()
 
 			if name := firstArg(args); name != "" {
-				ok, err := sc.Has(name)
+				ok, err := sc.Has(scope, name)
 				if err != nil {
 					log.Fatalln(err)
 				}
 				if !ok {
-					log.Fatalf("script %q not found\n", name)
+					log.Fatalf("script %q not found in %s scope\n", name, scope)
 				}
-				if err := sc.Open(context.Background(), editor, name); err != nil {
+				if err := sc.Open(context.Background(), editor, scope, name); err != nil {
 					log.Fatalln(err)
 				}
 				return
@@ -95,7 +114,7 @@ var (
 			if err := requireTTY("script name"); err != nil {
 				log.Fatalln(err)
 			}
-			allScripts, err := sc.ListScripts()
+			allScripts, err := sc.ListScripts(scope)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -103,7 +122,7 @@ var (
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if err := sc.Open(context.Background(), editor, script); err != nil {
+			if err := sc.Open(context.Background(), editor, scope, script); err != nil {
 				log.Fatalln(err)
 			}
 		},
@@ -113,15 +132,16 @@ var (
 		Aliases: []string{"rm"},
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			scope := resolveScope()
 			sc := scripts.Default()
 
 			if name := firstArg(args); name != "" {
-				ok, err := sc.Has(name)
+				ok, err := sc.Has(scope, name)
 				if err != nil {
 					log.Fatalln(err)
 				}
 				if !ok {
-					log.Fatalf("script %q not found\n", name)
+					log.Fatalf("script %q not found in %s scope\n", name, scope)
 				}
 				confirmed, err := confirmOrSkip(fmt.Sprintf("Remove script %q?", name), "--yes for non-interactive remove")
 				if err != nil {
@@ -132,7 +152,7 @@ var (
 					return
 				}
 				fmt.Printf("Removing %s\n", name)
-				if err := sc.RemoveScript(name); err != nil {
+				if err := sc.RemoveScript(name, scope); err != nil {
 					log.Fatalln(err)
 				}
 				return
@@ -141,7 +161,7 @@ var (
 			if err := requireTTY("script name"); err != nil {
 				log.Fatalln(err)
 			}
-			allScripts, err := sc.ListScripts()
+			allScripts, err := sc.ListScripts(scope)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -160,7 +180,7 @@ var (
 			}
 			fmt.Printf("Removing %s\n", script)
 
-			if err := sc.RemoveScript(script); err != nil {
+			if err := sc.RemoveScript(script, scope); err != nil {
 				log.Fatalln(err)
 			}
 		},
@@ -168,5 +188,8 @@ var (
 )
 
 func init() {
+	for _, c := range []*cobra.Command{addScriptCmd, lsScriptCmd, openScriptCmd, removeScriptCmd} {
+		c.Flags().StringVar(&scriptScope, "scope", string(scripts.ScopeWorkspace), "script scope: workspace or repo")
+	}
 	scriptsCmd.AddCommand(addScriptCmd, lsScriptCmd, openScriptCmd, removeScriptCmd, cdScriptCmd)
 }

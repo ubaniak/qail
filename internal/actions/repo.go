@@ -1,9 +1,14 @@
 package actions
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"path"
 
 	"github.com/ubaniak/qail/internal/config"
+	"github.com/ubaniak/qail/internal/installer"
+	"github.com/ubaniak/qail/internal/scripts"
 )
 
 // AddRepo registers a repo (Name -> URL) in the config. If the name already
@@ -54,22 +59,51 @@ func RemoveRepos(s config.Store, names []string) error {
 }
 
 // SetRepoPostInstall replaces the post-install script list for the given
-// repo. An empty scripts slice clears the entry.
-func SetRepoPostInstall(s config.Store, repo string, scripts []string) error {
+// repo. An empty scripts slice clears the entry. Each name must exist in
+// the repo scripts bucket; cross-scope references are rejected.
+func SetRepoPostInstall(s config.Store, repo string, scriptList []string) error {
 	if repo == "" {
 		return fmt.Errorf("repo must not be empty")
+	}
+	if err := validateScopedScripts(scripts.ScopeRepo, scriptList); err != nil {
+		return err
 	}
 	return readWrite(s, func(cfg *config.Config) error {
 		if cfg.PostInstallScripts.Repo == nil {
 			cfg.PostInstallScripts.Repo = make(map[string][]string)
 		}
-		if len(scripts) == 0 {
+		if len(scriptList) == 0 {
 			delete(cfg.PostInstallScripts.Repo, repo)
 			return nil
 		}
-		cfg.PostInstallScripts.Repo[repo] = append([]string(nil), scripts...)
+		cfg.PostInstallScripts.Repo[repo] = append([]string(nil), scriptList...)
 		return nil
 	})
+}
+
+// RunRepoScript executes a repo-scoped script against the named repo's
+// clone path under workspaceName. Used by the "run on demand" UI
+// entrypoint.
+func RunRepoScript(ctx context.Context, s config.Store, workspaceName, repoName, scriptName string, out io.Writer) error {
+	if workspaceName == "" {
+		return fmt.Errorf("workspace must not be empty")
+	}
+	if repoName == "" {
+		return fmt.Errorf("repo must not be empty")
+	}
+	if scriptName == "" {
+		return fmt.Errorf("script must not be empty")
+	}
+	cfg, err := s.Read()
+	if err != nil {
+		return err
+	}
+	if _, ok := cfg.Workspaces[workspaceName]; !ok {
+		return fmt.Errorf("workspace %q not found", workspaceName)
+	}
+	dir := path.Join(cfg.Root, workspaceName, repoName)
+	inst := installer.NewStreaming()
+	return inst.RunPostInstall(ctx, scripts.ScopeRepo, dir, []string{scriptName}, out)
 }
 
 // ListRepos returns the repo URL map and the per-repo post-install scripts

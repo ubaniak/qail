@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ubaniak/qail/internal/installer"
+	"github.com/ubaniak/qail/internal/scripts"
 )
 
 // fakeInstaller records every Install / RunPostInstall call. Install can be
@@ -22,6 +23,7 @@ type fakeInstaller struct {
 }
 
 type postCall struct {
+	scope   scripts.Scope
 	dir     string
 	scripts []string
 }
@@ -35,11 +37,11 @@ func (f *fakeInstaller) Install(_ context.Context, spec installer.PackageSpec, _
 	return nil
 }
 
-func (f *fakeInstaller) RunPostInstall(_ context.Context, dir string, scripts []string, _ io.Writer) error {
+func (f *fakeInstaller) RunPostInstall(_ context.Context, scope scripts.Scope, dir string, names []string, _ io.Writer) error {
 	if dir == f.failOnDir {
 		return errors.New("boom-post")
 	}
-	f.postCalls = append(f.postCalls, postCall{dir: dir, scripts: scripts})
+	f.postCalls = append(f.postCalls, postCall{scope: scope, dir: dir, scripts: names})
 	return nil
 }
 

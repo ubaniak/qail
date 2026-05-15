@@ -14,6 +14,7 @@ import { Clipboard } from "@wailsio/runtime";
 import {
   mutateAddEditor,
   mutateAddRepo,
+  mutateAddScript,
   mutateCdWorkspace,
   mutateCreateWorkspace,
   mutateEditWorkspace,
@@ -21,19 +22,31 @@ import {
   mutateOpenWorkspace,
   mutateRemoveEditor,
   mutateRemoveRepo,
+  mutateRemoveScript,
   mutateRemoveTmux,
   mutateRemoveWorkspace,
+  mutateRunRepoScript,
+  mutateRunWorkspaceScript,
   mutateSaveRoot,
   mutateSetDefaultEditor,
+  mutateSetRepoPostInstall,
   mutateSetWorkspaceEditor,
+  mutateSetWorkspacePostInstall,
+  mutateWriteScript,
   useListRepos,
+  useListScripts,
   useListSettings,
   useListTmux,
   useListWorkspaces,
 } from "../api/qail";
-import type { RepoMap, Settings, WorkspaceMap } from "../types";
+import type { RepoMap, Scope, Settings, WorkspaceMap } from "../types";
 import { useNotification } from "./notification";
 import { useProgress } from "./progress";
+
+export type ScriptsByScope = {
+  workspace: string[];
+  repo: string[];
+};
 
 export type QailServiceShape = {
   list: {
@@ -41,9 +54,10 @@ export type QailServiceShape = {
     repos: RepoMap;
     settings: Settings;
     tmux: string[];
+    scripts: ScriptsByScope;
   };
   create: {
-    workspace: (name: string, repos: string[]) => void;
+    workspace: (name: string, repos: string[], postInstall?: string[]) => void;
     repo: (name: string, repoUrl: string) => void;
   };
   edit: {
@@ -73,6 +87,23 @@ export type QailServiceShape = {
     setDefault: (name: string) => void;
     setWorkspace: (workspace: string, name: string) => void;
   };
+  scripts: {
+    refresh: (scope: Scope) => void;
+    add: (name: string, scope: Scope) => void;
+    remove: (name: string, scope: Scope) => void;
+    write: (
+      name: string,
+      scope: Scope,
+      contents: string,
+      onSuccess?: () => void
+    ) => void;
+    runWorkspace: (workspace: string, script: string) => void;
+    runRepo: (workspace: string, repo: string, script: string) => void;
+  };
+  postInstall: {
+    setWorkspace: (workspace: string, scripts: string[]) => void;
+    setRepo: (repo: string, scripts: string[]) => void;
+  };
 };
 
 const QailServiceContext = createContext<QailServiceShape | null>(null);
@@ -97,6 +128,8 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
   const repos = useListRepos();
   const settings = useListSettings();
   const tmux = useListTmux();
+  const wsScripts = useListScripts("workspace");
+  const repoScripts = useListScripts("repo");
 
   const value: QailServiceShape = {
     list: {
@@ -104,13 +137,18 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
       repos: repos.result,
       settings: settings.result,
       tmux: tmux.result,
+      scripts: {
+        workspace: wsScripts.result,
+        repo: repoScripts.result,
+      },
     },
     create: {
-      workspace: (name, selected) => {
+      workspace: (name, selected, postInstall = []) => {
         progress.start(`Create workspace: ${name}`);
         mutateCreateWorkspace(
           name,
           selected,
+          postInstall,
           () => {
             ws.refresh();
             toast.success(`Workspace "${name}" created`);
@@ -267,12 +305,104 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
           (e) => toast.error(`Update failed: ${e.message}`)
         ),
     },
+    scripts: {
+      refresh: (scope) => {
+        if (scope === "workspace") wsScripts.refresh();
+        else repoScripts.refresh();
+      },
+      add: (name, scope) =>
+        mutateAddScript(
+          name,
+          scope,
+          () => {
+            if (scope === "workspace") wsScripts.refresh();
+            else repoScripts.refresh();
+            toast.success(`Script "${name}" added`);
+          },
+          (e) => toast.error(`Add script failed: ${e.message}`)
+        ),
+      remove: (name, scope) =>
+        mutateRemoveScript(
+          name,
+          scope,
+          () => {
+            if (scope === "workspace") wsScripts.refresh();
+            else repoScripts.refresh();
+            ws.refresh();
+            repos.refresh();
+            toast.success(`Script "${name}" removed`);
+          },
+          (e) => toast.error(`Remove script failed: ${e.message}`)
+        ),
+      write: (name, scope, contents, onSuccess) =>
+        mutateWriteScript(
+          name,
+          scope,
+          contents,
+          () => {
+            toast.success(`Script "${name}" saved`);
+            onSuccess?.();
+          },
+          (e) => toast.error(`Save script failed: ${e.message}`)
+        ),
+      runWorkspace: (workspace, script) => {
+        progress.start(`Run ${script} in ${workspace}`);
+        mutateRunWorkspaceScript(
+          workspace,
+          script,
+          () => toast.success(`Ran "${script}" on ${workspace}`),
+          (e) => toast.error(`Run failed: ${e.message}`)
+        );
+      },
+      runRepo: (workspace, repo, script) => {
+        progress.start(`Run ${script} in ${workspace}/${repo}`);
+        mutateRunRepoScript(
+          workspace,
+          repo,
+          script,
+          () => toast.success(`Ran "${script}" on ${workspace}/${repo}`),
+          (e) => toast.error(`Run failed: ${e.message}`)
+        );
+      },
+    },
+    postInstall: {
+      setWorkspace: (workspace, list) =>
+        mutateSetWorkspacePostInstall(
+          workspace,
+          list,
+          () => {
+            ws.refresh();
+            toast.success(`Post-install updated for "${workspace}"`);
+          },
+          (e) => toast.error(`Update failed: ${e.message}`)
+        ),
+      setRepo: (repo, list) =>
+        mutateSetRepoPostInstall(
+          repo,
+          list,
+          () => {
+            repos.refresh();
+            toast.success(`Post-install updated for "${repo}"`);
+          },
+          (e) => toast.error(`Update failed: ${e.message}`)
+        ),
+    },
   };
 
   const loading =
-    ws.loading || repos.loading || settings.loading || tmux.loading;
+    ws.loading ||
+    repos.loading ||
+    settings.loading ||
+    tmux.loading ||
+    wsScripts.loading ||
+    repoScripts.loading;
   const firstError =
-    ws.error || repos.error || settings.error || tmux.error;
+    ws.error ||
+    repos.error ||
+    settings.error ||
+    tmux.error ||
+    wsScripts.error ||
+    repoScripts.error;
 
   if (firstError && !loading) {
     // Surface the error once; the UI is still usable with empty lists.

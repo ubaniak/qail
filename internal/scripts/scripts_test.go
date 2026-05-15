@@ -9,13 +9,18 @@ import (
 	"github.com/ubaniak/qail/internal/runner"
 )
 
-// seedScripts creates an isolated scripts directory under t.TempDir() and
-// optionally writes scriptName with scriptBody. Returns the directory.
+// seedScripts creates an isolated scripts root under t.TempDir() with a
+// workspace/ subdir and optionally writes scriptName under it. Returns
+// the root directory.
 func seedScripts(t *testing.T, scriptName, scriptBody string) string {
 	t.Helper()
 	dir := t.TempDir()
+	scopeDir := filepath.Join(dir, string(ScopeWorkspace))
+	if err := os.MkdirAll(scopeDir, 0755); err != nil {
+		t.Fatalf("mkdir scope: %v", err)
+	}
 	if scriptName != "" {
-		if err := os.WriteFile(filepath.Join(dir, scriptName), []byte(scriptBody), 0755); err != nil {
+		if err := os.WriteFile(filepath.Join(scopeDir, scriptName), []byte(scriptBody), 0755); err != nil {
 			t.Fatalf("write script: %v", err)
 		}
 	}
@@ -28,7 +33,7 @@ func TestRunBashScriptInvokesBashWithScriptPath(t *testing.T) {
 	rec := runner.NewRecorder().RespondOK([]byte("hi\n"))
 	s := New(rec, dir)
 
-	if err := s.RunBashScript(context.Background(), "hello.sh", "/tmp/work", nil); err != nil {
+	if err := s.RunBashScript(context.Background(), ScopeWorkspace, "hello.sh", "/tmp/work", nil); err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
 
@@ -39,7 +44,7 @@ func TestRunBashScriptInvokesBashWithScriptPath(t *testing.T) {
 	if got.Name != "/bin/bash" {
 		t.Fatalf("name = %q, want /bin/bash", got.Name)
 	}
-	wantPath := filepath.Join(dir, "hello.sh")
+	wantPath := filepath.Join(dir, string(ScopeWorkspace), "hello.sh")
 	if len(got.Args) != 1 || got.Args[0] != wantPath {
 		t.Fatalf("args = %v, want [%s]", got.Args, wantPath)
 	}
@@ -54,7 +59,7 @@ func TestRunBashScriptRejectsPathTraversal(t *testing.T) {
 	rec := runner.NewRecorder()
 	s := New(rec, dir)
 
-	err := s.RunBashScript(context.Background(), "../etc/passwd", "/tmp", nil)
+	err := s.RunBashScript(context.Background(), ScopeWorkspace, "../etc/passwd", "/tmp", nil)
 	if err == nil {
 		t.Fatalf("expected error for path traversal")
 	}
