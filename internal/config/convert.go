@@ -61,13 +61,16 @@ func (s *SQLiteStore) ConvertJSON(jsonPath string) error {
 
 	cfg := Config{
 		Root:       jcfg.Root,
-		Editor:     jcfg.Editor,
 		Repos:      jcfg.Repos,
 		Workspaces: make(Workspace, len(jcfg.Workspaces)),
 		PostInstallScripts: PostInstallScripts{
 			Repo:      jcfg.PostInstallScripts.Repo,
 			Workspace: jcfg.PostInstallScripts.Workspace,
 		},
+	}
+	if jcfg.Editor != "" {
+		cfg.Editors = []Editor{{Name: "default", Command: jcfg.Editor}}
+		cfg.DefaultEditor = "default"
 	}
 
 	for name, ws := range jcfg.Workspaces {

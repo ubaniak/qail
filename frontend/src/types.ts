@@ -7,12 +7,19 @@ export namespace models {
   export interface WorkspaceDTO {
     repos: string[];
     lastUsed: string; // ISO-8601 from time.Time JSON marshal
+    editor?: string;
     postInstall?: string[];
+  }
+
+  export interface EditorDTO {
+    name: string;
+    command: string;
   }
 
   export interface ConfigDTO {
     root: string;
-    editor: string;
+    editors: EditorDTO[];
+    defaultEditor: string;
     workspaces: Record<string, WorkspaceDTO>;
   }
 
@@ -33,5 +40,6 @@ export type RepoMap = Record<string, models.RepoDTO>;
 
 export type Settings = {
   root: string;
-  editor: string;
+  editors: models.EditorDTO[];
+  defaultEditor: string;
 };

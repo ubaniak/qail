@@ -151,7 +151,6 @@ func SetWorkspacePostInstall(s config.Store, name string, scripts []string) erro
 // handlers from needing to import config.Store directly.
 type WorkspaceContext struct {
 	Root       string
-	Editor     string
 	Workspaces config.Workspace
 }
 
@@ -163,7 +162,6 @@ func ReadWorkspaceContext(s config.Store) (WorkspaceContext, error) {
 	}
 	return WorkspaceContext{
 		Root:       cfg.Root,
-		Editor:     cfg.Editor,
 		Workspaces: cfg.Workspaces,
 	}, nil
 }

@@ -145,8 +145,7 @@ func TestListWorkspacesReadOnly(t *testing.T) {
 
 func TestReadWorkspaceContextReturnsCfgFields(t *testing.T) {
 	s := config.NewMemoryStoreFrom(config.Config{
-		Root:   "/q",
-		Editor: "code",
+		Root: "/q",
 		Workspaces: config.Workspace{
 			"alpha": config.WorkspaceProfile{Repos: []string{"a"}},
 		},
@@ -155,7 +154,7 @@ func TestReadWorkspaceContextReturnsCfgFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadWorkspaceContext: %v", err)
 	}
-	if ctx.Root != "/q" || ctx.Editor != "code" {
+	if ctx.Root != "/q" {
 		t.Errorf("ctx = %+v", ctx)
 	}
 	if _, ok := ctx.Workspaces["alpha"]; !ok {

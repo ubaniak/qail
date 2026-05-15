@@ -9,6 +9,7 @@ export {
 
 export {
     ConfigDTO,
+    EditorDTO,
     OpenCommandDTO,
     RepoDTO,
     WorkspaceDTO

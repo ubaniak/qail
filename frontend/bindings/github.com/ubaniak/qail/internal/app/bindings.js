@@ -20,6 +20,15 @@ import * as $models from "./models.js";
 
 /**
  * @param {string} name
+ * @param {string} command
+ * @returns {$CancellablePromise<void>}
+ */
+export function AddEditor(name, command) {
+    return $Call.ByID(1705413485, name, command);
+}
+
+/**
+ * @param {string} name
  * @param {string} url
  * @returns {$CancellablePromise<void>}
  */
@@ -160,6 +169,17 @@ export function OpenCommand(name) {
 }
 
 /**
+ * @param {string} name
+ * @param {string} editor
+ * @returns {$CancellablePromise<$models.OpenCommandDTO>}
+ */
+export function OpenCommandWith(name, editor) {
+    return $Call.ByID(414860674, name, editor).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
  * OpenEditor spawns the configured editor against the workspace and
  * returns immediately. The desktop app calls this on workspace click so
  * the user gets a GUI launch instead of the legacy clipboard-copy flow.
@@ -169,6 +189,24 @@ export function OpenCommand(name) {
  */
 export function OpenEditor(name) {
     return $Call.ByID(2318643228, name);
+}
+
+/**
+ * OpenEditorWith spawns a specific editor (by name) against the workspace.
+ * @param {string} name
+ * @param {string} editor
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenEditorWith(name, editor) {
+    return $Call.ByID(281778612, name, editor);
+}
+
+/**
+ * @param {string} name
+ * @returns {$CancellablePromise<void>}
+ */
+export function RemoveEditor(name) {
+    return $Call.ByID(2714803216, name);
 }
 
 /**
@@ -211,11 +249,11 @@ export function ScriptsDir() {
 }
 
 /**
- * @param {string} value
+ * @param {string} name
  * @returns {$CancellablePromise<void>}
  */
-export function SetEditor(value) {
-    return $Call.ByID(1697442118, value);
+export function SetDefaultEditor(name) {
+    return $Call.ByID(1247010445, name);
 }
 
 /**
@@ -233,6 +271,15 @@ export function SetRepoPostInstall(repo, scriptsList) {
  */
 export function SetRoot(value) {
     return $Call.ByID(2376132863, value);
+}
+
+/**
+ * @param {string} workspace
+ * @param {string} name
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetWorkspaceEditor(workspace, name) {
+    return $Call.ByID(3620668481, workspace, name);
 }
 
 /**

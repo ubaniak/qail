@@ -27,8 +27,9 @@ func newTestServer(t *testing.T, cfg config.Config) (*httptest.Server, *config.M
 
 func TestGetConfigReturnsRootEditorWorkspaces(t *testing.T) {
 	ts, _ := newTestServer(t, config.Config{
-		Root:   "/q",
-		Editor: "code",
+		Root:          "/q",
+		Editors:       []config.Editor{{Name: "vscode", Command: "code"}},
+		DefaultEditor: "vscode",
 		Workspaces: config.Workspace{
 			"alpha": config.WorkspaceProfile{Repos: []string{"a"}, LastUsed: time.Now()},
 		},
@@ -48,8 +49,11 @@ func TestGetConfigReturnsRootEditorWorkspaces(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.Root != "/q" || got.Editor != "code" {
+	if got.Root != "/q" || got.DefaultEditor != "vscode" {
 		t.Errorf("got = %+v", got)
+	}
+	if len(got.Editors) != 1 || got.Editors[0].Command != "code" {
+		t.Errorf("Editors = %+v", got.Editors)
 	}
 	if _, ok := got.Workspaces["alpha"]; !ok {
 		t.Errorf("alpha missing: %+v", got.Workspaces)

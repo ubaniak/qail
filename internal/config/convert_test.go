@@ -48,8 +48,11 @@ func TestConvertJSONRoundTrips(t *testing.T) {
 	if cfg.Root != "/work" {
 		t.Fatalf("Root = %q, want /work", cfg.Root)
 	}
-	if cfg.Editor != "code" {
-		t.Fatalf("Editor = %q, want code", cfg.Editor)
+	if cfg.DefaultEditor != "default" {
+		t.Fatalf("DefaultEditor = %q, want default", cfg.DefaultEditor)
+	}
+	if len(cfg.Editors) != 1 || cfg.Editors[0].Command != "code" {
+		t.Fatalf("Editors = %+v, want [{default, code}]", cfg.Editors)
 	}
 	if cfg.Repos["svc-a"] != "git@a" {
 		t.Fatalf("Repos[svc-a] = %q", cfg.Repos["svc-a"])
@@ -116,6 +119,46 @@ func TestConvertJSONInvalidPath(t *testing.T) {
 	}
 }
 
+func TestMigrateLegacyEditorSetting(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "qail.db")
+	s, err := NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewSQLiteStore: %v", err)
+	}
+	// Simulate a pre-migration DB: write the legacy `editor` setting
+	// directly and drop the editors table rows the store inserted.
+	if err := s.db.Save(&settingRow{Key: "editor", Value: "nvim"}).Error; err != nil {
+		t.Fatalf("seed legacy: %v", err)
+	}
+	if err := s.db.Exec("DELETE FROM editors").Error; err != nil {
+		t.Fatalf("clear editors: %v", err)
+	}
+	if err := s.db.Exec("DELETE FROM settings WHERE key = ?", "default_editor").Error; err != nil {
+		t.Fatalf("clear default_editor: %v", err)
+	}
+	// Re-open to trigger migration.
+	s2, err := NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("re-open: %v", err)
+	}
+	cfg, err := s2.Read()
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if cfg.DefaultEditor != "default" {
+		t.Fatalf("DefaultEditor = %q, want default", cfg.DefaultEditor)
+	}
+	if len(cfg.Editors) != 1 || cfg.Editors[0].Command != "nvim" {
+		t.Fatalf("Editors = %+v, want [{default, nvim}]", cfg.Editors)
+	}
+	// Legacy key should be gone.
+	var leftover settingRow
+	if err := s2.db.Where("key = ?", "editor").First(&leftover).Error; err == nil {
+		t.Fatalf("legacy editor key not removed: %+v", leftover)
+	}
+}
+
 func TestBackUpAndRestore(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "qail.db")
@@ -125,7 +168,7 @@ func TestBackUpAndRestore(t *testing.T) {
 	}
 
 	// Write initial config
-	original := Config{Root: "/original", Editor: "vim"}
+	original := Config{Root: "/original", Editors: []Editor{{Name: "vim", Command: "vim"}}, DefaultEditor: "vim"}
 	if err := s.Write(original); err != nil {
 		t.Fatalf("Write original: %v", err)
 	}
@@ -139,7 +182,7 @@ func TestBackUpAndRestore(t *testing.T) {
 	}
 
 	// Overwrite with different config
-	modified := Config{Root: "/modified", Editor: "code"}
+	modified := Config{Root: "/modified", Editors: []Editor{{Name: "code", Command: "code"}}, DefaultEditor: "code"}
 	if err := s.Write(modified); err != nil {
 		t.Fatalf("Write modified: %v", err)
 	}

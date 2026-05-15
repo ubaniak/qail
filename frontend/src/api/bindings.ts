@@ -18,7 +18,10 @@ import type { models, WorkspaceMap, RepoMap } from "../types";
 export type Bindings = {
   GetConfig: () => Promise<models.ConfigDTO>;
   SetRoot: (value: string) => Promise<void>;
-  SetEditor: (value: string) => Promise<void>;
+  AddEditor: (name: string, command: string) => Promise<void>;
+  RemoveEditor: (name: string) => Promise<void>;
+  SetDefaultEditor: (name: string) => Promise<void>;
+  SetWorkspaceEditor: (workspace: string, name: string) => Promise<void>;
 
   ListRepos: () => Promise<RepoMap>;
   AddRepo: (name: string, url: string) => Promise<void>;
@@ -35,7 +38,9 @@ export type Bindings = {
   CdWorkspace: (name: string) => Promise<string>;
   AttachCommand: (name: string) => Promise<string>;
   OpenCommand: (name: string) => Promise<models.OpenCommandDTO>;
+  OpenCommandWith: (name: string, editor: string) => Promise<models.OpenCommandDTO>;
   OpenEditor: (name: string) => Promise<void>;
+  OpenEditorWith: (name: string, editor: string) => Promise<void>;
   ExplorePath: (name: string) => Promise<string>;
 
   ListScripts: () => Promise<string[]>;
@@ -54,7 +59,10 @@ const wrap = <T,>(p: PromiseLike<T>): Promise<T> => Promise.resolve(p);
 export const api: Bindings = {
   GetConfig: () => wrap(B.GetConfig()) as Promise<models.ConfigDTO>,
   SetRoot: (v) => wrap(B.SetRoot(v)),
-  SetEditor: (v) => wrap(B.SetEditor(v)),
+  AddEditor: (n, c) => wrap(B.AddEditor(n, c)),
+  RemoveEditor: (n) => wrap(B.RemoveEditor(n)),
+  SetDefaultEditor: (n) => wrap(B.SetDefaultEditor(n)),
+  SetWorkspaceEditor: (ws, n) => wrap(B.SetWorkspaceEditor(ws, n)),
 
   ListRepos: () => wrap(B.ListRepos()) as Promise<RepoMap>,
   AddRepo: (name, url) => wrap(B.AddRepo(name, url)),
@@ -71,7 +79,10 @@ export const api: Bindings = {
   CdWorkspace: (name) => wrap(B.CdWorkspace(name)),
   AttachCommand: (name) => wrap(B.AttachCommand(name)),
   OpenCommand: (name) => wrap(B.OpenCommand(name)) as Promise<models.OpenCommandDTO>,
+  OpenCommandWith: (name, editor) =>
+    wrap(B.OpenCommandWith(name, editor)) as Promise<models.OpenCommandDTO>,
   OpenEditor: (name) => wrap(B.OpenEditor(name)),
+  OpenEditorWith: (name, editor) => wrap(B.OpenEditorWith(name, editor)),
   ExplorePath: (name) => wrap(B.ExplorePath(name)),
 
   ListScripts: () => wrap(B.ListScripts()),

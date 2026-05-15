@@ -58,14 +58,21 @@ func (*Bindings) ServiceName() string { return "Bindings" }
 // ConfigDTO mirrors the HTTP layer's configResponse so the same React
 // types compile against either backend.
 type ConfigDTO struct {
-	Root       string                  `json:"root"`
-	Editor     string                  `json:"editor"`
-	Workspaces map[string]WorkspaceDTO `json:"workspaces"`
+	Root          string                  `json:"root"`
+	Editors       []EditorDTO             `json:"editors"`
+	DefaultEditor string                  `json:"defaultEditor"`
+	Workspaces    map[string]WorkspaceDTO `json:"workspaces"`
+}
+
+type EditorDTO struct {
+	Name    string `json:"name"`
+	Command string `json:"command"`
 }
 
 type WorkspaceDTO struct {
 	Repos       []string  `json:"repos"`
 	LastUsed    time.Time `json:"lastUsed"`
+	Editor      string    `json:"editor,omitempty"`
 	PostInstall []string  `json:"postInstall,omitempty"`
 }
 
@@ -79,23 +86,36 @@ func (b *Bindings) GetConfig() (ConfigDTO, error) {
 	if err != nil {
 		return ConfigDTO{}, err
 	}
+	editors := make([]EditorDTO, len(cfg.Editors))
+	for i, e := range cfg.Editors {
+		editors[i] = EditorDTO{Name: e.Name, Command: e.Command}
+	}
 	out := ConfigDTO{
-		Root:       cfg.Root,
-		Editor:     cfg.Editor,
-		Workspaces: make(map[string]WorkspaceDTO, len(cfg.Workspaces)),
+		Root:          cfg.Root,
+		Editors:       editors,
+		DefaultEditor: cfg.DefaultEditor,
+		Workspaces:    make(map[string]WorkspaceDTO, len(cfg.Workspaces)),
 	}
 	for name, profile := range cfg.Workspaces {
 		out.Workspaces[name] = WorkspaceDTO{
 			Repos:       profile.Repos,
 			LastUsed:    profile.LastUsed,
+			Editor:      profile.Editor,
 			PostInstall: cfg.PostInstallScripts.Workspace[name],
 		}
 	}
 	return out, nil
 }
 
-func (b *Bindings) SetRoot(value string) error   { return actions.SetRoot(b.store, value) }
-func (b *Bindings) SetEditor(value string) error { return actions.SetEditor(b.store, value) }
+func (b *Bindings) SetRoot(value string) error { return actions.SetRoot(b.store, value) }
+func (b *Bindings) AddEditor(name, command string) error {
+	return actions.AddEditor(b.store, name, command)
+}
+func (b *Bindings) RemoveEditor(name string) error    { return actions.RemoveEditor(b.store, name) }
+func (b *Bindings) SetDefaultEditor(name string) error { return actions.SetDefaultEditor(b.store, name) }
+func (b *Bindings) SetWorkspaceEditor(workspace, name string) error {
+	return actions.SetWorkspaceEditor(b.store, workspace, name)
+}
 
 // --- repos ------------------------------------------------------------------
 
@@ -135,6 +155,7 @@ func (b *Bindings) ListWorkspaces() (map[string]WorkspaceDTO, error) {
 		out[name] = WorkspaceDTO{
 			Repos:       profile.Repos,
 			LastUsed:    profile.LastUsed,
+			Editor:      profile.Editor,
 			PostInstall: postInstall[name],
 		}
 	}
@@ -198,7 +219,11 @@ type OpenCommandDTO struct {
 }
 
 func (b *Bindings) OpenCommand(name string) (OpenCommandDTO, error) {
-	cmd, err := actions.OpenWorkspaceCommand(b.store, name)
+	return b.OpenCommandWith(name, "")
+}
+
+func (b *Bindings) OpenCommandWith(name, editor string) (OpenCommandDTO, error) {
+	cmd, err := actions.OpenWorkspaceCommandWith(b.store, name, editor)
 	if err != nil {
 		return OpenCommandDTO{}, err
 	}
@@ -211,6 +236,11 @@ func (b *Bindings) OpenCommand(name string) (OpenCommandDTO, error) {
 // Use OpenCommand if the caller wants the invocation as data.
 func (b *Bindings) OpenEditor(name string) error {
 	return actions.LaunchEditor(b.store, name)
+}
+
+// OpenEditorWith spawns a specific editor (by name) against the workspace.
+func (b *Bindings) OpenEditorWith(name, editor string) error {
+	return actions.LaunchEditorWith(b.store, name, editor)
 }
 
 // ExplorePath returns the workspace path so JS can open it via

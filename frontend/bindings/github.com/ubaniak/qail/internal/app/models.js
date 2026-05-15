@@ -27,12 +27,19 @@ export class ConfigDTO {
              */
             this["root"] = "";
         }
-        if (!("editor" in $$source)) {
+        if (!("editors" in $$source)) {
+            /**
+             * @member
+             * @type {EditorDTO[]}
+             */
+            this["editors"] = [];
+        }
+        if (!("defaultEditor" in $$source)) {
             /**
              * @member
              * @type {string}
              */
-            this["editor"] = "";
+            this["defaultEditor"] = "";
         }
         if (!("workspaces" in $$source)) {
             /**
@@ -51,12 +58,51 @@ export class ConfigDTO {
      * @returns {ConfigDTO}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType1;
+        const $$createField1_0 = $$createType1;
+        const $$createField3_0 = $$createType3;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("editors" in $$parsedSource) {
+            $$parsedSource["editors"] = $$createField1_0($$parsedSource["editors"]);
+        }
         if ("workspaces" in $$parsedSource) {
-            $$parsedSource["workspaces"] = $$createField2_0($$parsedSource["workspaces"]);
+            $$parsedSource["workspaces"] = $$createField3_0($$parsedSource["workspaces"]);
         }
         return new ConfigDTO(/** @type {Partial<ConfigDTO>} */($$parsedSource));
+    }
+}
+
+export class EditorDTO {
+    /**
+     * Creates a new EditorDTO instance.
+     * @param {Partial<EditorDTO>} [$$source = {}] - The source object to create the EditorDTO.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("command" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["command"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new EditorDTO instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {EditorDTO}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new EditorDTO(/** @type {Partial<EditorDTO>} */($$parsedSource));
     }
 }
 
@@ -136,7 +182,7 @@ export class RepoDTO {
      * @returns {RepoDTO}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType2;
+        const $$createField1_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("postInstall" in $$parsedSource) {
             $$parsedSource["postInstall"] = $$createField1_0($$parsedSource["postInstall"]);
@@ -168,6 +214,13 @@ export class WorkspaceDTO {
         if (/** @type {any} */(false)) {
             /**
              * @member
+             * @type {string | undefined}
+             */
+            this["editor"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
              * @type {string[] | undefined}
              */
             this["postInstall"] = undefined;
@@ -182,20 +235,22 @@ export class WorkspaceDTO {
      * @returns {WorkspaceDTO}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType2;
-        const $$createField2_0 = $$createType2;
+        const $$createField0_0 = $$createType4;
+        const $$createField3_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repos" in $$parsedSource) {
             $$parsedSource["repos"] = $$createField0_0($$parsedSource["repos"]);
         }
         if ("postInstall" in $$parsedSource) {
-            $$parsedSource["postInstall"] = $$createField2_0($$parsedSource["postInstall"]);
+            $$parsedSource["postInstall"] = $$createField3_0($$parsedSource["postInstall"]);
         }
         return new WorkspaceDTO(/** @type {Partial<WorkspaceDTO>} */($$parsedSource));
     }
 }
 
 // Private type creation functions
-const $$createType0 = WorkspaceDTO.createFrom;
-const $$createType1 = $Create.Map($Create.Any, $$createType0);
-const $$createType2 = $Create.Array($Create.Any);
+const $$createType0 = EditorDTO.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = WorkspaceDTO.createFrom;
+const $$createType3 = $Create.Map($Create.Any, $$createType2);
+const $$createType4 = $Create.Array($Create.Any);

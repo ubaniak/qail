@@ -32,10 +32,42 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 		&workspaceRepoRow{},
 		&repoRow{},
 		&scriptRow{},
+		&editorRow{},
 	); err != nil {
 		return nil, err
 	}
-	return &SQLiteStore{db: db, dbPath: dbPath}, nil
+	store := &SQLiteStore{db: db, dbPath: dbPath}
+	if err := store.migrateLegacyEditor(); err != nil {
+		return nil, err
+	}
+	return store, nil
+}
+
+// migrateLegacyEditor folds the pre-multi-editor schema (single
+// settings.editor row) into the new shape: one editor named "default"
+// plus DefaultEditor = "default". Idempotent — once the editors table
+// holds rows the migration is a no-op even if a legacy key lingers.
+func (s *SQLiteStore) migrateLegacyEditor() error {
+	var legacy settingRow
+	err := s.db.Where("key = ?", "editor").First(&legacy).Error
+	if err != nil || legacy.Value == "" {
+		return nil
+	}
+	var existing int64
+	if err := s.db.Model(&editorRow{}).Count(&existing).Error; err != nil {
+		return err
+	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if existing == 0 {
+			if err := tx.Save(&editorRow{Name: "default", Command: legacy.Value}).Error; err != nil {
+				return err
+			}
+			if err := tx.Save(&settingRow{Key: "default_editor", Value: "default"}).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Delete(&settingRow{}, "key = ?", "editor").Error
+	})
 }
 
 // internal GORM models
@@ -50,9 +82,17 @@ func (settingRow) TableName() string { return "settings" }
 type workspaceRow struct {
 	Name     string `gorm:"primaryKey"`
 	LastUsed time.Time
+	Editor   string
 }
 
 func (workspaceRow) TableName() string { return "workspaces" }
+
+type editorRow struct {
+	Name    string `gorm:"primaryKey"`
+	Command string
+}
+
+func (editorRow) TableName() string { return "editors" }
 
 type workspaceRepoRow struct {
 	WorkspaceName string `gorm:"primaryKey"`
@@ -93,8 +133,20 @@ func (s *SQLiteStore) Read() (Config, error) {
 		switch set.Key {
 		case "root":
 			cfg.Root = set.Value
-		case "editor":
-			cfg.Editor = set.Value
+		case "default_editor":
+			cfg.DefaultEditor = set.Value
+		}
+	}
+
+	// editors
+	var editors []editorRow
+	if err := s.db.Order("name asc").Find(&editors).Error; err != nil {
+		return cfg, err
+	}
+	if len(editors) > 0 {
+		cfg.Editors = make([]Editor, len(editors))
+		for i, e := range editors {
+			cfg.Editors[i] = Editor{Name: e.Name, Command: e.Command}
 		}
 	}
 
@@ -129,6 +181,7 @@ func (s *SQLiteStore) Read() (Config, error) {
 			cfg.Workspaces[w.Name] = WorkspaceProfile{
 				Repos:    repoNames,
 				LastUsed: w.LastUsed,
+				Editor:   w.Editor,
 			}
 		}
 	}
@@ -157,8 +210,18 @@ func (s *SQLiteStore) Write(cfg Config) error {
 		if err := tx.Save(&settingRow{Key: "root", Value: cfg.Root}).Error; err != nil {
 			return err
 		}
-		if err := tx.Save(&settingRow{Key: "editor", Value: cfg.Editor}).Error; err != nil {
+		if err := tx.Save(&settingRow{Key: "default_editor", Value: cfg.DefaultEditor}).Error; err != nil {
 			return err
+		}
+
+		// editors — replace all
+		if err := tx.Exec("DELETE FROM editors").Error; err != nil {
+			return err
+		}
+		for _, e := range cfg.Editors {
+			if err := tx.Create(&editorRow{Name: e.Name, Command: e.Command}).Error; err != nil {
+				return err
+			}
 		}
 
 		// repos — replace all
@@ -179,7 +242,7 @@ func (s *SQLiteStore) Write(cfg Config) error {
 			return err
 		}
 		for name, profile := range cfg.Workspaces {
-			if err := tx.Create(&workspaceRow{Name: name, LastUsed: profile.LastUsed}).Error; err != nil {
+			if err := tx.Create(&workspaceRow{Name: name, LastUsed: profile.LastUsed, Editor: profile.Editor}).Error; err != nil {
 				return err
 			}
 			for _, repoName := range profile.Repos {

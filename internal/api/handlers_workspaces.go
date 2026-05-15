@@ -16,6 +16,7 @@ import (
 type workspaceResponse struct {
 	Repos       []string  `json:"repos"`
 	LastUsed    time.Time `json:"lastUsed"`
+	Editor      string    `json:"editor,omitempty"`
 	PostInstall []string  `json:"postInstall,omitempty"`
 }
 
@@ -216,7 +217,8 @@ func (s *Server) handleOpenWorkspaceCmd(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	cmd, err := actions.OpenWorkspaceCommand(s.store, name)
+	editorOverride := r.URL.Query().Get("editor")
+	cmd, err := actions.OpenWorkspaceCommandWith(s.store, name, editorOverride)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return

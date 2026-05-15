@@ -51,8 +51,11 @@ func zeroConfig() Config {
 // the same slice/map memory.
 func cloneConfig(cfg Config) Config {
 	out := Config{
-		Root:   cfg.Root,
-		Editor: cfg.Editor,
+		Root:          cfg.Root,
+		DefaultEditor: cfg.DefaultEditor,
+	}
+	if cfg.Editors != nil {
+		out.Editors = append([]Editor(nil), cfg.Editors...)
 	}
 	if cfg.Repos != nil {
 		out.Repos = make(map[string]string, len(cfg.Repos))
@@ -67,6 +70,7 @@ func cloneConfig(cfg Config) Config {
 			out.Workspaces[k] = WorkspaceProfile{
 				Repos:    repos,
 				LastUsed: v.LastUsed,
+				Editor:   v.Editor,
 			}
 		}
 	}

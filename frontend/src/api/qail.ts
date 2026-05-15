@@ -59,13 +59,31 @@ export const mutateRemoveWorkspace = (
 // when the spawn returns. The success callback no longer receives the
 // command DTO — the UI just toasts; if a future caller needs the
 // editor+path tuple it can fall back to requireApi().OpenCommand().
+// Passing an editor name overrides the workspace/global default for this
+// launch only.
 export const mutateOpenWorkspace = (
   name: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void,
+  editor?: string
+): void =>
+  mutateService({
+    call: async () =>
+      editor
+        ? requireApi().OpenEditorWith(name, editor)
+        : requireApi().OpenEditor(name),
+    onSuccess,
+    onError,
+  });
+
+export const mutateSetWorkspaceEditor = (
+  workspace: string,
+  editor: string,
   onSuccess: () => void,
   onError?: (e: Error) => void
 ): void =>
   mutateService({
-    call: async () => requireApi().OpenEditor(name),
+    call: async () => requireApi().SetWorkspaceEditor(workspace, editor),
     onSuccess,
     onError,
   });
@@ -138,23 +156,57 @@ export const useListSettings = (): CallServiceResult<Settings> =>
     {
       call: async () => {
         const cfg = await requireApi().GetConfig();
-        return { root: cfg.root, editor: cfg.editor };
+        return {
+          root: cfg.root,
+          editors: cfg.editors ?? [],
+          defaultEditor: cfg.defaultEditor,
+        };
       },
     },
-    { root: "", editor: "" }
+    { root: "", editors: [], defaultEditor: "" }
   );
 
-export const mutateSaveSettings = (
+export const mutateSaveRoot = (
   root: string,
-  editor: string,
   onSuccess: () => void,
   onError?: (e: Error) => void
 ): void =>
   mutateService({
-    call: async () => {
-      await requireApi().SetRoot(root);
-      await requireApi().SetEditor(editor);
-    },
+    call: async () => requireApi().SetRoot(root),
+    onSuccess,
+    onError,
+  });
+
+export const mutateAddEditor = (
+  name: string,
+  command: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().AddEditor(name, command),
+    onSuccess,
+    onError,
+  });
+
+export const mutateRemoveEditor = (
+  name: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().RemoveEditor(name),
+    onSuccess,
+    onError,
+  });
+
+export const mutateSetDefaultEditor = (
+  name: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().SetDefaultEditor(name),
     onSuccess,
     onError,
   });

@@ -44,7 +44,9 @@ func (s *Server) Handler() http.Handler {
 	// config / settings
 	mux.HandleFunc("GET /api/config", s.handleGetConfig)
 	mux.HandleFunc("PUT /api/config/root", s.handlePutRoot)
-	mux.HandleFunc("PUT /api/config/editor", s.handlePutEditor)
+	mux.HandleFunc("POST /api/config/editors", s.handleAddEditor)
+	mux.HandleFunc("DELETE /api/config/editors/{name}", s.handleRemoveEditor)
+	mux.HandleFunc("PUT /api/config/editors/default", s.handleSetDefaultEditor)
 
 	// repos
 	mux.HandleFunc("GET /api/repos", s.handleListRepos)
@@ -60,6 +62,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/workspaces/{name}/clone", s.handleCloneWorkspace)
 	mux.HandleFunc("POST /api/workspaces/{name}/create", s.handleCreateWorkspaceOnDisk)
 	mux.HandleFunc("PUT /api/workspaces/{name}/post-install", s.handleSetWorkspacePostInstall)
+	mux.HandleFunc("PUT /api/workspaces/{name}/editor", s.handleSetWorkspaceEditor)
 	mux.HandleFunc("GET /api/workspaces/{name}/path", s.handleCdWorkspace)
 	mux.HandleFunc("GET /api/workspaces/{name}/mux", s.handleMuxWorkspace)
 	mux.HandleFunc("GET /api/workspaces/{name}/open-cmd", s.handleOpenWorkspaceCmd)

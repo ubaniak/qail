@@ -42,7 +42,7 @@ func TestStoreEmptyRead(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Read: %v", err)
 		}
-		if cfg.Root != "" || cfg.Editor != "" {
+		if cfg.Root != "" || cfg.DefaultEditor != "" || len(cfg.Editors) != 0 {
 			t.Fatalf("Root/Editor not zero: %+v", cfg)
 		}
 		if len(cfg.Repos) != 0 || len(cfg.Workspaces) != 0 {
@@ -58,8 +58,9 @@ func TestStoreEmptyRead(t *testing.T) {
 func TestStoreWriteThenRead(t *testing.T) {
 	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
 	want := Config{
-		Root:   "/work",
-		Editor: "code",
+		Root:          "/work",
+		Editors:       []Editor{{Name: "vscode", Command: "code"}, {Name: "vim", Command: "vim"}},
+		DefaultEditor: "vscode",
 		Repos: map[string]string{
 			"svc-a": "git@example.com:foo/svc-a.git",
 			"svc-b": "git@example.com:foo/svc-b.git",
@@ -68,6 +69,7 @@ func TestStoreWriteThenRead(t *testing.T) {
 			"team-x": WorkspaceProfile{
 				Repos:    []string{"svc-a", "svc-b"},
 				LastUsed: now,
+				Editor:   "vim",
 			},
 		},
 		PostInstallScripts: PostInstallScripts{
@@ -94,14 +96,16 @@ func TestStoreWriteThenRead(t *testing.T) {
 
 func TestStoreOverwriteReplacesAll(t *testing.T) {
 	first := Config{
-		Root:   "/old",
-		Editor: "vim",
-		Repos:  map[string]string{"a": "url-a", "b": "url-b"},
+		Root:          "/old",
+		Editors:       []Editor{{Name: "vim", Command: "vim"}},
+		DefaultEditor: "vim",
+		Repos:         map[string]string{"a": "url-a", "b": "url-b"},
 	}
 	second := Config{
-		Root:   "/new",
-		Editor: "code",
-		Repos:  map[string]string{"a": "url-a-updated", "c": "url-c"},
+		Root:          "/new",
+		Editors:       []Editor{{Name: "vscode", Command: "code"}},
+		DefaultEditor: "vscode",
+		Repos:         map[string]string{"a": "url-a-updated", "c": "url-c"},
 	}
 
 	runParity(t, "second Write replaces stale rows", func(t *testing.T, s Store) {
@@ -125,8 +129,11 @@ func TestStoreOverwriteReplacesAll(t *testing.T) {
 		if got.Repos["c"] != "url-c" {
 			t.Fatalf("expected c=url-c, got %q", got.Repos["c"])
 		}
-		if got.Root != "/new" || got.Editor != "code" {
+		if got.Root != "/new" || got.DefaultEditor != "vscode" {
 			t.Fatalf("settings not overwritten: %+v", got)
+		}
+		if len(got.Editors) != 1 || got.Editors[0].Command != "code" {
+			t.Fatalf("Editors not overwritten: %+v", got.Editors)
 		}
 	})
 }
@@ -168,8 +175,11 @@ func assertConfigEqual(t *testing.T, got, want Config) {
 	if got.Root != want.Root {
 		t.Fatalf("Root: got %q want %q", got.Root, want.Root)
 	}
-	if got.Editor != want.Editor {
-		t.Fatalf("Editor: got %q want %q", got.Editor, want.Editor)
+	if got.DefaultEditor != want.DefaultEditor {
+		t.Fatalf("DefaultEditor: got %q want %q", got.DefaultEditor, want.DefaultEditor)
+	}
+	if !reflect.DeepEqual(sortedEditors(got.Editors), sortedEditors(want.Editors)) {
+		t.Fatalf("Editors:\n got: %v\nwant: %v", got.Editors, want.Editors)
 	}
 	if !reflect.DeepEqual(got.Repos, want.Repos) {
 		t.Fatalf("Repos:\n got: %v\nwant: %v", got.Repos, want.Repos)
@@ -191,8 +201,20 @@ func assertConfigEqual(t *testing.T, got, want Config) {
 		if !gotWS.LastUsed.Equal(wantWS.LastUsed) {
 			t.Fatalf("workspace %q LastUsed: got %v want %v", name, gotWS.LastUsed, wantWS.LastUsed)
 		}
+		if gotWS.Editor != wantWS.Editor {
+			t.Fatalf("workspace %q Editor: got %q want %q", name, gotWS.Editor, wantWS.Editor)
+		}
 	}
 	if !reflect.DeepEqual(got.PostInstallScripts, want.PostInstallScripts) {
 		t.Fatalf("PostInstallScripts:\n got: %+v\nwant: %+v", got.PostInstallScripts, want.PostInstallScripts)
 	}
+}
+
+// sortedEditors returns a copy of editors sorted by Name so equality
+// checks survive SQLite's row-order quirks (Read uses ORDER BY name, but
+// callers may pass slices in any order).
+func sortedEditors(in []Editor) []Editor {
+	out := append([]Editor(nil), in...)
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }

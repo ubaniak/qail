@@ -12,16 +12,20 @@ import { Spin } from "antd";
 import { Clipboard } from "@wailsio/runtime";
 
 import {
+  mutateAddEditor,
   mutateAddRepo,
   mutateCdWorkspace,
   mutateCreateWorkspace,
   mutateEditWorkspace,
   mutateMuxWorkspace,
   mutateOpenWorkspace,
+  mutateRemoveEditor,
   mutateRemoveRepo,
   mutateRemoveTmux,
   mutateRemoveWorkspace,
-  mutateSaveSettings,
+  mutateSaveRoot,
+  mutateSetDefaultEditor,
+  mutateSetWorkspaceEditor,
   useListRepos,
   useListSettings,
   useListTmux,
@@ -51,7 +55,7 @@ export type QailServiceShape = {
     tmux: (name: string) => void;
   };
   open: {
-    workspace: (name: string) => void;
+    workspace: (name: string, editor?: string) => void;
   };
   mux: {
     attach: (name: string) => void;
@@ -61,7 +65,13 @@ export type QailServiceShape = {
     workspace: (name: string) => void;
   };
   save: {
-    settings: (root: string, editor: string) => void;
+    root: (root: string) => void;
+  };
+  editors: {
+    add: (name: string, command: string) => void;
+    remove: (name: string) => void;
+    setDefault: (name: string) => void;
+    setWorkspace: (workspace: string, name: string) => void;
   };
 };
 
@@ -164,11 +174,17 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
         ),
     },
     open: {
-      workspace: (name) =>
+      workspace: (name, editor) =>
         mutateOpenWorkspace(
           name,
-          () => toast.success(`Opening "${name}" in editor`),
-          (e) => toast.error(`Open failed: ${e.message}`)
+          () =>
+            toast.success(
+              editor
+                ? `Opening "${name}" in ${editor}`
+                : `Opening "${name}" in editor`
+            ),
+          (e) => toast.error(`Open failed: ${e.message}`),
+          editor
         ),
     },
     mux: {
@@ -196,15 +212,59 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
         ),
     },
     save: {
-      settings: (root, editor) =>
-        mutateSaveSettings(
+      root: (root) =>
+        mutateSaveRoot(
           root,
-          editor,
           () => {
             settings.refresh();
-            toast.success("Settings saved");
+            toast.success("Root saved");
           },
           (e) => toast.error(`Save failed: ${e.message}`)
+        ),
+    },
+    editors: {
+      add: (name, command) =>
+        mutateAddEditor(
+          name,
+          command,
+          () => {
+            settings.refresh();
+            toast.success(`Editor "${name}" added`);
+          },
+          (e) => toast.error(`Add editor failed: ${e.message}`)
+        ),
+      remove: (name) =>
+        mutateRemoveEditor(
+          name,
+          () => {
+            settings.refresh();
+            ws.refresh();
+            toast.success(`Editor "${name}" removed`);
+          },
+          (e) => toast.error(`Remove editor failed: ${e.message}`)
+        ),
+      setDefault: (name) =>
+        mutateSetDefaultEditor(
+          name,
+          () => {
+            settings.refresh();
+            toast.success(`Default editor set to "${name}"`);
+          },
+          (e) => toast.error(`Set default failed: ${e.message}`)
+        ),
+      setWorkspace: (workspace, name) =>
+        mutateSetWorkspaceEditor(
+          workspace,
+          name,
+          () => {
+            ws.refresh();
+            toast.success(
+              name
+                ? `${workspace} → editor "${name}"`
+                : `${workspace} → inherits default`
+            );
+          },
+          (e) => toast.error(`Update failed: ${e.message}`)
         ),
     },
   };

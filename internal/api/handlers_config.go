@@ -5,14 +5,21 @@ import (
 	"net/http"
 
 	"github.com/ubaniak/qail/internal/actions"
+	"github.com/ubaniak/qail/internal/config"
 )
 
 // configResponse mirrors actions.WorkspaceContext but adds the per-repo
 // post-install map so a single GET seeds the whole UI shell.
 type configResponse struct {
-	Root       string                       `json:"root"`
-	Editor     string                       `json:"editor"`
-	Workspaces map[string]workspaceResponse `json:"workspaces"`
+	Root          string                       `json:"root"`
+	Editors       []editorDTO                  `json:"editors"`
+	DefaultEditor string                       `json:"defaultEditor"`
+	Workspaces    map[string]workspaceResponse `json:"workspaces"`
+}
+
+type editorDTO struct {
+	Name    string `json:"name"`
+	Command string `json:"command"`
 }
 
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
@@ -26,14 +33,24 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		wsResp[name] = workspaceResponse{
 			Repos:       profile.Repos,
 			LastUsed:    profile.LastUsed,
+			Editor:      profile.Editor,
 			PostInstall: cfg.PostInstallScripts.Workspace[name],
 		}
 	}
 	writeJSON(w, http.StatusOK, configResponse{
-		Root:       cfg.Root,
-		Editor:     cfg.Editor,
-		Workspaces: wsResp,
+		Root:          cfg.Root,
+		Editors:       toEditorDTOs(cfg.Editors),
+		DefaultEditor: cfg.DefaultEditor,
+		Workspaces:    wsResp,
 	})
+}
+
+func toEditorDTOs(in []config.Editor) []editorDTO {
+	out := make([]editorDTO, len(in))
+	for i, e := range in {
+		out[i] = editorDTO{Name: e.Name, Command: e.Command}
+	}
+	return out
 }
 
 type setStringRequest struct {
@@ -57,19 +74,64 @@ func (s *Server) handlePutRoot(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"root": req.Value})
 }
 
-func (s *Server) handlePutEditor(w http.ResponseWriter, r *http.Request) {
+type addEditorRequest struct {
+	Name    string `json:"name"`
+	Command string `json:"command"`
+}
+
+func (s *Server) handleAddEditor(w http.ResponseWriter, r *http.Request) {
+	var req addEditorRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := actions.AddEditor(s.store, req.Name, req.Command); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, editorDTO{Name: req.Name, Command: req.Command})
+}
+
+func (s *Server) handleRemoveEditor(w http.ResponseWriter, r *http.Request) {
+	name, err := pathParam(r, "name")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := actions.RemoveEditor(s.store, name); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"removed": name})
+}
+
+func (s *Server) handleSetDefaultEditor(w http.ResponseWriter, r *http.Request) {
 	var req setStringRequest
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	if req.Value == "" {
-		writeError(w, http.StatusBadRequest, errors.New("value must not be empty"))
+	if err := actions.SetDefaultEditor(s.store, req.Value); err != nil {
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	if err := actions.SetEditor(s.store, req.Value); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+	writeJSON(w, http.StatusOK, map[string]string{"defaultEditor": req.Value})
+}
+
+func (s *Server) handleSetWorkspaceEditor(w http.ResponseWriter, r *http.Request) {
+	name, err := pathParam(r, "name")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"editor": req.Value})
+	var req setStringRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := actions.SetWorkspaceEditor(s.store, name, req.Value); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"workspace": name, "editor": req.Value})
 }

@@ -38,22 +38,50 @@ func (e EditorCommand) String() string {
 	return fmt.Sprintf("%s %s", e.Editor, e.Path)
 }
 
-// OpenWorkspaceCommand resolves the workspace, validates the editor, bumps
+// OpenWorkspaceCommand resolves the workspace, picks the editor via the
+// default-resolution chain (workspace override > global default), bumps
 // LastUsed, and returns the editor invocation as data. Pure — no
 // subprocess. CLI handlers that want to actually launch an editor call
 // OpenWorkspace; HTTP handlers return the EditorCommand to the client.
 func OpenWorkspaceCommand(s config.Store, name string) (EditorCommand, error) {
+	return OpenWorkspaceCommandWith(s, name, "")
+}
+
+// OpenWorkspaceCommandWith is the explicit-override variant. editorName
+// takes precedence over the workspace override and the global default.
+// Empty editorName falls back to the workspace override, then the global
+// default. Returns "no editor selected" if all three tiers are empty, or
+// "editor X not found" if the requested name does not exist.
+func OpenWorkspaceCommandWith(s config.Store, name, editorName string) (EditorCommand, error) {
 	cfg, profile, wsPath, err := resolveWorkspace(s, name)
 	if err != nil {
 		return EditorCommand{}, err
 	}
-	if cfg.Editor == "" {
-		return EditorCommand{}, errors.New("no editor selected")
+	editor, err := resolveEditor(cfg, profile, editorName)
+	if err != nil {
+		return EditorCommand{}, err
 	}
 	if err := touchAndWrite(s, cfg, name, profile); err != nil {
 		return EditorCommand{}, err
 	}
-	return EditorCommand{Editor: cfg.Editor, Path: wsPath}, nil
+	return EditorCommand{Editor: editor.Command, Path: wsPath}, nil
+}
+
+// resolveEditor picks an editor from cfg using the precedence:
+// explicit > workspace.Editor > cfg.DefaultEditor.
+func resolveEditor(cfg config.Config, profile config.WorkspaceProfile, explicit string) (config.Editor, error) {
+	candidates := []string{explicit, profile.Editor, cfg.DefaultEditor}
+	for _, name := range candidates {
+		if name == "" {
+			continue
+		}
+		ed, ok := findEditor(cfg, name)
+		if !ok {
+			return config.Editor{}, fmt.Errorf("editor %q not found", name)
+		}
+		return ed, nil
+	}
+	return config.Editor{}, errors.New("no editor selected")
 }
 
 // OpenWorkspace launches the configured editor against the workspace
@@ -83,12 +111,52 @@ func OpenWorkspace(ctx context.Context, s config.Store, r Runner, name string) e
 // self-detach. TTY editors (vim) won't render usefully and should still
 // use the CLI `qail ws open` path that calls OpenWorkspace.
 func LaunchEditor(s config.Store, name string) error {
-	cmd, err := OpenWorkspaceCommand(s, name)
+	return LaunchEditorWith(s, name, "")
+}
+
+// LaunchEditorWith is the explicit-override variant of LaunchEditor.
+func LaunchEditorWith(s config.Store, name, editorName string) error {
+	cmd, err := OpenWorkspaceCommandWith(s, name, editorName)
 	if err != nil {
 		return err
 	}
 	c := exec.Command(cmd.Editor, cmd.Path)
 	return c.Start()
+}
+
+// OpenWorkspace launches the configured editor against the workspace
+// with optional override. See OpenWorkspace for stdio semantics.
+func OpenWorkspaceWith(ctx context.Context, s config.Store, r Runner, name, editorName string) error {
+	cmd, err := OpenWorkspaceCommandWith(s, name, editorName)
+	if err != nil {
+		return err
+	}
+	_, err = r.Run(ctx, runner.Command{
+		Name:   cmd.Editor,
+		Args:   []string{cmd.Path},
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	})
+	return err
+}
+
+// DefaultEditorCommand returns the command string for the global default
+// editor, or "" if none is set. Used by callers (e.g. script open) that
+// don't have a workspace context.
+func DefaultEditorCommand(s config.Store) (string, error) {
+	cfg, err := s.Read()
+	if err != nil {
+		return "", err
+	}
+	if cfg.DefaultEditor == "" {
+		return "", nil
+	}
+	ed, ok := findEditor(cfg, cfg.DefaultEditor)
+	if !ok {
+		return "", nil
+	}
+	return ed.Command, nil
 }
 
 // ExploreWorkspacePath touches LastUsed and returns the workspace

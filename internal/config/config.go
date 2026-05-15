@@ -19,6 +19,9 @@ type Workspace map[string]WorkspaceProfile
 type WorkspaceProfile struct {
 	Repos    []string
 	LastUsed time.Time
+	// Editor names the workspace's preferred editor (matches Editor.Name).
+	// Empty = inherit Config.DefaultEditor.
+	Editor string
 }
 
 func NewWorkspaceProfile(repos []string, lastUsed time.Time) WorkspaceProfile {
@@ -28,6 +31,13 @@ func NewWorkspaceProfile(repos []string, lastUsed time.Time) WorkspaceProfile {
 	}
 }
 
+// Editor is a named editor binding. Name is the user-chosen label and
+// identity key; Command is the executable name (e.g. "code", "vim").
+type Editor struct {
+	Name    string
+	Command string
+}
+
 type PostInstallScripts struct {
 	Repo      map[string][]string
 	Workspace map[string][]string
@@ -35,7 +45,8 @@ type PostInstallScripts struct {
 
 type Config struct {
 	Root               string
-	Editor             string
+	Editors            []Editor
+	DefaultEditor      string // refs Editor.Name; "" = none
 	Workspaces         Workspace
 	Repos              map[string]string
 	PostInstallScripts PostInstallScripts

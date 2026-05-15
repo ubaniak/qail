@@ -9,6 +9,7 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
 
+	"github.com/ubaniak/qail/internal/actions"
 	"github.com/ubaniak/qail/internal/color"
 	"github.com/ubaniak/qail/internal/forms"
 	"github.com/ubaniak/qail/internal/scripts"
@@ -68,9 +69,12 @@ var (
 		Aliases: []string{"o"},
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, err := mustStore().Read()
+			editor, err := actions.DefaultEditorCommand(mustStore())
 			if err != nil {
 				log.Fatalln(err)
+			}
+			if editor == "" {
+				log.Fatalln("no default editor configured; run `qail config editor add` first")
 			}
 			sc := scripts.Default()
 
@@ -82,7 +86,7 @@ var (
 				if !ok {
 					log.Fatalf("script %q not found\n", name)
 				}
-				if err := sc.Open(context.Background(), cfg.Editor, name); err != nil {
+				if err := sc.Open(context.Background(), editor, name); err != nil {
 					log.Fatalln(err)
 				}
 				return
@@ -99,7 +103,7 @@ var (
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if err := sc.Open(context.Background(), cfg.Editor, script); err != nil {
+			if err := sc.Open(context.Background(), editor, script); err != nil {
 				log.Fatalln(err)
 			}
 		},

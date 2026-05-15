@@ -1,6 +1,8 @@
 bin/
 vendor
-build/
+build/bin/
+build/installers/
+build/.DS_Store
 frontend/node_modules/
 frontend/dist/
 *.app

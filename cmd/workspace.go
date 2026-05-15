@@ -20,11 +20,13 @@ import (
 
 // flag-backed inputs for non-interactive workspace commands.
 var (
-	wsAddRepos   []string
-	wsEditRepos  []string
-	wsCloneRepos []string
-	wsPIScripts  []string
-	wsPIClear    bool
+	wsAddRepos    []string
+	wsEditRepos   []string
+	wsCloneRepos  []string
+	wsPIScripts   []string
+	wsPIClear     bool
+	wsOpenEditor  string
+	wsEditorUnset bool
 )
 
 // resolveWorkspaceName returns a workspace name. Validates against the
@@ -91,7 +93,27 @@ var (
 			if err != nil {
 				log.Fatalln(err)
 			}
-			if err := actions.OpenWorkspace(context.Background(), s, runner.NewOS(), name); err != nil {
+			if err := actions.OpenWorkspaceWith(context.Background(), s, runner.NewOS(), name, wsOpenEditor); err != nil {
+				log.Fatalln(err)
+			}
+		},
+	}
+	editorWsCmd = &cobra.Command{
+		Use:   "editor <workspace> [name]",
+		Short: "Set the workspace's preferred editor (or --unset to inherit global)",
+		Args:  cobra.RangeArgs(1, 2),
+		Run: func(cmd *cobra.Command, args []string) {
+			s := mustStore()
+			ws := args[0]
+			var editorName string
+			if wsEditorUnset {
+				editorName = ""
+			} else if len(args) == 2 {
+				editorName = args[1]
+			} else {
+				log.Fatalln("editor name required (or pass --unset)")
+			}
+			if err := actions.SetWorkspaceEditor(s, ws, editorName); err != nil {
 				log.Fatalln(err)
 			}
 		},
@@ -440,6 +462,8 @@ func init() {
 	cloneWsCmd.Flags().StringSliceVarP(&wsCloneRepos, "repo", "r", nil, "override repo list for the clone (defaults to source)")
 	postInstallScriptWsCmd.Flags().StringSliceVarP(&wsPIScripts, "script", "s", nil, "post-install script name (repeatable, or comma-separated)")
 	postInstallScriptWsCmd.Flags().BoolVar(&wsPIClear, "clear", false, "clear all post-install scripts for the workspace")
+	openWsCmd.Flags().StringVarP(&wsOpenEditor, "editor", "e", "", "editor name override (defaults to workspace/global)")
+	editorWsCmd.Flags().BoolVar(&wsEditorUnset, "unset", false, "clear the workspace's editor override")
 
-	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd, tmuxWsCmd, postInstallScriptWsCmd, exploreCmd)
+	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd, tmuxWsCmd, postInstallScriptWsCmd, exploreCmd, editorWsCmd)
 }

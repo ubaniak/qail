@@ -10,8 +10,9 @@ import type { ReactNode } from "react";
 
 export type MenuAction = {
   label: string;
-  onClick: (id: string) => void;
+  onClick?: (id: string) => void;
   danger?: boolean;
+  children?: MenuAction[];
 };
 
 export type ToolboxListItemProps = {
@@ -49,15 +50,32 @@ export default function ToolboxListItem({
       <div className="mt-0.5">{secondary}</div>
     );
 
-  const dropdownItems: MenuProps["items"] = menuItems.map((item, i) => ({
-    key: `${i}-${item.label}`,
-    label: item.label,
-    danger: item.danger,
-    onClick: ({ domEvent }) => {
-      domEvent.stopPropagation();
-      item.onClick(id);
-    },
-  }));
+  const toMenuItems = (
+    actions: MenuAction[],
+    keyPrefix = ""
+  ): MenuProps["items"] =>
+    actions.map((item, i) => {
+      const key = `${keyPrefix}${i}-${item.label}`;
+      if (item.children && item.children.length > 0) {
+        return {
+          key,
+          label: item.label,
+          danger: item.danger,
+          children: toMenuItems(item.children, `${key}-`),
+        };
+      }
+      return {
+        key,
+        label: item.label,
+        danger: item.danger,
+        onClick: ({ domEvent }) => {
+          domEvent.stopPropagation();
+          item.onClick?.(id);
+        },
+      };
+    });
+
+  const dropdownItems: MenuProps["items"] = toMenuItems(menuItems);
 
   return (
     <div
