@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -286,6 +287,34 @@ func (s *Scripts) Open(ctx context.Context, editor string, scope Scope, scriptNa
 		Name: editor,
 		Args: []string{scriptPath},
 	})
+	return err
+}
+
+// OpenDefault hands scriptName to the OS's registered default handler
+// (`open` on macOS, `xdg-open` on Linux, `cmd /c start` on Windows).
+// Lets users edit a script without configuring a qail editor.
+func (s *Scripts) OpenDefault(ctx context.Context, scope Scope, scriptName string) error {
+	scopeDir, err := s.ScopeDir(scope)
+	if err != nil {
+		return err
+	}
+	scriptPath := filepath.Join(scopeDir, scriptName)
+	if err := validateScopedPath(scopeDir, scriptPath); err != nil {
+		return err
+	}
+
+	var cmd runner.Command
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = runner.Command{Name: "open", Args: []string{scriptPath}}
+	case "linux":
+		cmd = runner.Command{Name: "xdg-open", Args: []string{scriptPath}}
+	case "windows":
+		cmd = runner.Command{Name: "cmd", Args: []string{"/c", "start", "", scriptPath}}
+	default:
+		return fmt.Errorf("no default opener for GOOS=%s", runtime.GOOS)
+	}
+	_, err = s.r.Run(ctx, cmd)
 	return err
 }
 
