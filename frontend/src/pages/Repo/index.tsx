@@ -12,7 +12,7 @@ import { EditRepo } from "./edit";
 import { RemoveRepo } from "./remove";
 
 export const RepoIndex = () => {
-  const { list } = useQailService();
+  const { list, copy } = useQailService();
   const [query, setQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [toRemove, setToRemove] = useState<string | undefined>();
@@ -62,6 +62,14 @@ export const RepoIndex = () => {
           secondary={repo.url}
           icon={<GithubOutlined />}
           menuItems={[
+            {
+              label: "Copy URL",
+              onClick: () => copy.text(repo.url, "Repo URL"),
+            },
+            {
+              label: "Copy name",
+              onClick: (id) => copy.text(id, "Repo name"),
+            },
             { label: "Edit post-install", onClick: (id) => setToEdit(id) },
             { label: "Remove", danger: true, onClick: (id) => setToRemove(id) },
           ]}

@@ -11,9 +11,11 @@ export type EditRootProps = {
   onClose: () => void;
 };
 
+const DEFAULT_ROOT = "~/workspaces";
+
 export const EditRoot = ({ root: initialRoot, onClose }: EditRootProps) => {
   const { save } = useQailService();
-  const [root, setRoot] = useState(initialRoot);
+  const [root, setRoot] = useState(initialRoot || DEFAULT_ROOT);
 
   const changed = root.trim() !== initialRoot.trim();
   const valid = root.trim() !== "";

@@ -19,8 +19,10 @@ import {
   mutateCreateWorkspace,
   mutateEditWorkspace,
   mutateMuxWorkspace,
+  mutateOpenOrphanEditor,
   mutateOpenWorkspace,
   mutateRemoveEditor,
+  mutateRemoveOrphanWorkspaces,
   mutateRemoveRepo,
   mutateRemoveScript,
   mutateRemoveTmux,
@@ -33,6 +35,7 @@ import {
   mutateSetWorkspaceEditor,
   mutateSetWorkspacePostInstall,
   mutateWriteScript,
+  useListOrphanWorkspaces,
   useListRepos,
   useListScripts,
   useListSettings,
@@ -78,6 +81,9 @@ export type QailServiceShape = {
   cd: {
     workspace: (name: string) => void;
   };
+  copy: {
+    text: (value: string, label?: string) => void;
+  };
   save: {
     root: (root: string) => void;
   };
@@ -103,6 +109,12 @@ export type QailServiceShape = {
   postInstall: {
     setWorkspace: (workspace: string, scripts: string[]) => void;
     setRepo: (repo: string, scripts: string[]) => void;
+  };
+  cleanup: {
+    orphans: string[];
+    refresh: () => void;
+    remove: (names: string[]) => void;
+    openEditor: (name: string) => void;
   };
 };
 
@@ -130,6 +142,7 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
   const tmux = useListTmux();
   const wsScripts = useListScripts("workspace");
   const repoScripts = useListScripts("repo");
+  const orphans = useListOrphanWorkspaces();
 
   const value: QailServiceShape = {
     list: {
@@ -248,6 +261,12 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
           },
           (e) => toast.error(`Cd failed: ${e.message}`)
         ),
+    },
+    copy: {
+      text: (value, label) => {
+        void copyToClipboard(value);
+        toast.success(`${label ?? "Copied"} to clipboard`);
+      },
     },
     save: {
       root: (root) =>
@@ -387,6 +406,29 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
           (e) => toast.error(`Update failed: ${e.message}`)
         ),
     },
+    cleanup: {
+      orphans: orphans.result,
+      refresh: () => orphans.refresh(),
+      remove: (names) =>
+        mutateRemoveOrphanWorkspaces(
+          names,
+          () => {
+            orphans.refresh();
+            const summary =
+              names.length === 1
+                ? `Deleted "${names[0]}"`
+                : `Deleted ${names.length} directories`;
+            toast.success(summary);
+          },
+          (e) => toast.error(`Cleanup failed: ${e.message}`)
+        ),
+      openEditor: (name) =>
+        mutateOpenOrphanEditor(
+          name,
+          () => toast.success(`Opening "${name}" in editor`),
+          (e) => toast.error(`Open failed: ${e.message}`)
+        ),
+    },
   };
 
   const loading =
@@ -395,14 +437,16 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
     settings.loading ||
     tmux.loading ||
     wsScripts.loading ||
-    repoScripts.loading;
+    repoScripts.loading ||
+    orphans.loading;
   const firstError =
     ws.error ||
     repos.error ||
     settings.error ||
     tmux.error ||
     wsScripts.error ||
-    repoScripts.error;
+    repoScripts.error ||
+    orphans.error;
 
   if (firstError && !loading) {
     // Surface the error once; the UI is still usable with empty lists.

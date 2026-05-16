@@ -141,6 +141,28 @@ func OpenWorkspaceWith(ctx context.Context, s config.Store, r Runner, name, edit
 	return err
 }
 
+// LaunchEditorForOrphan spawns the configured editor against an orphan
+// directory under cfg.Root. Used by Settings → Cleanup "Open in editor"
+// action. Picks editor by precedence: explicit editorName > global default
+// (orphan dirs aren't registered so there's no workspace override). Empty
+// editorName falls back to the global default.
+func LaunchEditorForOrphan(s config.Store, name, editorName string) error {
+	wsPath, err := OrphanPath(s, name)
+	if err != nil {
+		return err
+	}
+	cfg, err := s.Read()
+	if err != nil {
+		return err
+	}
+	editor, err := resolveEditor(cfg, config.WorkspaceProfile{}, editorName)
+	if err != nil {
+		return err
+	}
+	c := exec.Command(editor.Command, wsPath)
+	return c.Start()
+}
+
 // DefaultEditorCommand returns the command string for the global default
 // editor, or "" if none is set. Used by callers (e.g. script open) that
 // don't have a workspace context.

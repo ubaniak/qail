@@ -4,7 +4,9 @@
 // reloads via localStorage so reopening the app lands where the user
 // left off.
 
-import { useEffect, useState } from "react";
+import { SettingOutlined } from "@ant-design/icons";
+import { Alert } from "antd";
+import { useEffect, useMemo, useState } from "react";
 import ProgressDrawer from "./component/Toolbox/ProgressDrawer";
 import TopBar from "./component/Toolbox/TopBar";
 import ToolboxTabs from "./component/Toolbox/Tabs";
@@ -14,27 +16,48 @@ import { RepoIndex } from "./pages/Repo";
 import { SettingsIndex } from "./pages/Settings";
 import { TmuxIndex } from "./pages/Tmux";
 import { WorkspaceIndex } from "./pages/Workspace";
+import { useQailService } from "./providers/qailservice";
 
 const STORAGE_KEY = "qail.tabKey";
 
-const tabs: ToolboxTab[] = [
-  {
-    key: "workspaces",
-    label: "Workspaces",
-    component: <WorkspaceIndex />,
-    shortcut: "⌘1",
-  },
-  { key: "repos", label: "Repos", component: <RepoIndex />, shortcut: "⌘2" },
-  { key: "tmux", label: "Tmux", component: <TmuxIndex />, shortcut: "⌘3" },
-  {
-    key: "postinstall",
-    label: "Post-install",
-    component: <PostInstallIndex />,
-    shortcut: "⌘4",
-  },
-];
-
 function App() {
+  const { list } = useQailService();
+  const numWorkspaces = Object.keys(list.workspaces).length;
+  const numRepos = Object.keys(list.repos).length;
+  const numTmux = list.tmux.length;
+  const needsSetup =
+    !list.settings.root || list.settings.editors.length === 0;
+
+  const tabs: ToolboxTab[] = useMemo(
+    () => [
+      {
+        key: "workspaces",
+        label: `Workspaces (${numWorkspaces})`,
+        component: <WorkspaceIndex />,
+        shortcut: "⌘1",
+      },
+      {
+        key: "repos",
+        label: `Repos (${numRepos})`,
+        component: <RepoIndex />,
+        shortcut: "⌘2",
+      },
+      {
+        key: "tmux",
+        label: `Tmux (${numTmux})`,
+        component: <TmuxIndex />,
+        shortcut: "⌘3",
+      },
+      {
+        key: "postinstall",
+        label: "Post-install",
+        component: <PostInstallIndex />,
+        shortcut: "⌘4",
+      },
+    ],
+    [numWorkspaces, numRepos, numTmux]
+  );
+
   const initial =
     (typeof window !== "undefined" && localStorage.getItem(STORAGE_KEY)) ||
     tabs[0].key;
@@ -65,15 +88,44 @@ function App() {
         onSettingsClick={() => setShowSettings((s) => !s)}
         settingsActive={showSettings}
       />
-      <main className="flex-1 mt-14 min-h-0 overflow-hidden">
+      <main className="flex-1 mt-14 min-h-0 overflow-hidden flex flex-col">
         {showSettings ? (
           <SettingsIndex />
         ) : (
-          <ToolboxTabs
-            tabs={tabs}
-            activeKey={activeKey}
-            onChange={onTabChange}
-          />
+          <>
+            {needsSetup && (
+              <Alert
+                type="warning"
+                showIcon
+                icon={<SettingOutlined />}
+                className="!rounded-none !border-x-0 !border-t-0"
+                message="Configure workspace root and editor"
+                description={
+                  !list.settings.root && list.settings.editors.length === 0
+                    ? "Set a workspace root and add at least one editor to get started."
+                    : !list.settings.root
+                      ? "Set a workspace root to get started."
+                      : "Add at least one editor to open workspaces."
+                }
+                action={
+                  <button
+                    type="button"
+                    className="px-3 py-1 text-xs font-medium rounded bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 border border-amber-500/40"
+                    onClick={() => setShowSettings(true)}
+                  >
+                    Open Settings
+                  </button>
+                }
+              />
+            )}
+            <div className="flex-1 min-h-0">
+              <ToolboxTabs
+                tabs={tabs}
+                activeKey={activeKey}
+                onChange={onTabChange}
+              />
+            </div>
+          </>
         )}
       </main>
       <ProgressDrawer />

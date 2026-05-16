@@ -151,6 +151,36 @@ export const mutateRemoveRepo = (
     onError,
   });
 
+// ---------- cleanup ---------------------------------------------------------
+
+export const useListOrphanWorkspaces = (): CallServiceResult<string[]> =>
+  callService<string[]>(
+    { call: async () => requireApi().ListOrphanWorkspaces() },
+    []
+  );
+
+export const mutateRemoveOrphanWorkspaces = (
+  names: string[],
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().RemoveOrphanWorkspaces(names),
+    onSuccess,
+    onError,
+  });
+
+export const mutateOpenOrphanEditor = (
+  name: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().OpenOrphanEditor(name),
+    onSuccess,
+    onError,
+  });
+
 // ---------- settings --------------------------------------------------------
 
 export const useListSettings = (): CallServiceResult<Settings> =>

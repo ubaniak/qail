@@ -111,11 +111,18 @@ func (w Workspace) populate(ctx context.Context, wsPath string, out io.Writer) e
 	fmt.Fprintf(out, "Creating workspace %s ...\n", color.Cyan(wsPath))
 
 	for _, p := range w.Packages {
+		dest := path.Join(wsPath, p)
+		if _, err := w.fs.Stat(dest); err == nil {
+			fmt.Fprintf(out, "* Skipping package %s — already present at %s\n\n", color.Cyan(p), color.Cyan(dest))
+			continue
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("stat %s: %v", dest, err)
+		}
 		fmt.Fprintf(out, "* Adding package %s ...\n", color.Cyan(p))
 		spec := installer.PackageSpec{
 			Name:        p,
 			RepoURL:     w.Repos[p],
-			Dest:        path.Join(wsPath, p),
+			Dest:        dest,
 			PostInstall: w.RepoPostInstall[p],
 		}
 		if err := w.inst.Install(ctx, spec, out); err != nil {
@@ -172,6 +179,50 @@ func Tmux(ctx context.Context, ws string) (string, error) {
 	return t.AttachCommand(sessionName), nil
 }
 
+// ListOrphans returns directories in root that are not tracked in ws —
+// i.e. workspace candidates the user never registered. Files (and
+// hidden dotfiles like .DS_Store) are ignored. Pure listing; no deletes.
+func ListOrphans(root string, ws config.Workspace) ([]string, error) {
+	return listOrphansWithFS(OSFS{}, root, ws)
+}
+
+func listOrphansWithFS(fs FS, root string, ws config.Workspace) ([]string, error) {
+	files, err := fs.ReadDir(root)
+	if err != nil {
+		return nil, err
+	}
+	var orphans []string
+	for _, file := range files {
+		if !file.IsDir() {
+			continue
+		}
+		name := file.Name()
+		if len(name) > 0 && name[0] == '.' {
+			continue
+		}
+		if _, ok := ws[name]; !ok {
+			orphans = append(orphans, name)
+		}
+	}
+	return orphans, nil
+}
+
+// RemoveOrphans deletes the named subdirectories of root. Caller is
+// responsible for confirmation; this is the unguarded primitive used by
+// both `qail ws clean` and the desktop Settings → Cleanup tab.
+func RemoveOrphans(root string, names []string) error {
+	return removeOrphansWithFS(OSFS{}, root, names)
+}
+
+func removeOrphansWithFS(fs FS, root string, names []string) error {
+	for _, name := range names {
+		if err := fs.RemoveAll(path.Join(root, name)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Clean lists root, identifies subdirectories not tracked in ws, prompts
 // the user, then deletes the orphans. Production callers go through Clean;
 // tests substitute fs and confirm via cleanWithDeps.
@@ -186,22 +237,11 @@ func cleanWithDeps(fs FS, confirm func(string) (bool, error), root string, ws co
 	if out == nil {
 		out = os.Stdout
 	}
-	files, err := fs.ReadDir(root)
-	if err != nil {
-		return err
-	}
-
 	fmt.Fprintln(out, "Reading ...", color.Cyan(root))
 
-	var toDelete []string
-	for _, file := range files {
-		if !file.IsDir() {
-			continue
-		}
-		fmt.Fprintln(out, "Folder name", color.Cyan(file.Name()))
-		if _, ok := ws[file.Name()]; !ok {
-			toDelete = append(toDelete, file.Name())
-		}
+	toDelete, err := listOrphansWithFS(fs, root, ws)
+	if err != nil {
+		return err
 	}
 
 	if len(toDelete) == 0 {
@@ -224,10 +264,6 @@ func cleanWithDeps(fs FS, confirm func(string) (bool, error), root string, ws co
 
 	for _, name := range toDelete {
 		fmt.Fprintf(out, "%s Deleting: %s\n", color.Yellow(">>>"), color.Cyan(name))
-		if err := fs.RemoveAll(path.Join(root, name)); err != nil {
-			return err
-		}
 	}
-
-	return nil
+	return removeOrphansWithFS(fs, root, toDelete)
 }

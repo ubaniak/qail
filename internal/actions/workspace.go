@@ -223,6 +223,61 @@ type WorkspaceContext struct {
 	Workspaces config.Workspace
 }
 
+// ListOrphanWorkspaces lists directories under cfg.Root that are not
+// registered as workspaces — candidates for cleanup. Reads config once;
+// the caller may pair it with RemoveOrphanWorkspaces after confirmation.
+func ListOrphanWorkspaces(s config.Store) ([]string, error) {
+	cfg, err := s.Read()
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Root == "" {
+		return nil, nil
+	}
+	return workspace.ListOrphans(cfg.Root, cfg.Workspaces)
+}
+
+// OrphanPath returns the absolute on-disk path for an orphan directory
+// under cfg.Root. Refuses if name is empty, root unconfigured, or name is
+// actually a registered workspace (those use the workspace flow). Pure;
+// no editor spawn — clipboard/open callers compose with it.
+func OrphanPath(s config.Store, name string) (string, error) {
+	if name == "" {
+		return "", fmt.Errorf("orphan name must not be empty")
+	}
+	cfg, err := s.Read()
+	if err != nil {
+		return "", err
+	}
+	if cfg.Root == "" {
+		return "", fmt.Errorf("workspace root is not configured")
+	}
+	if _, tracked := cfg.Workspaces[name]; tracked {
+		return "", fmt.Errorf("%q is a registered workspace; use the workspace flow", name)
+	}
+	return path.Join(cfg.Root, name), nil
+}
+
+// RemoveOrphanWorkspaces deletes the named subdirectories of cfg.Root.
+// Defensive: refuses to touch any name that is currently a registered
+// workspace, even if the caller asked — registered workspaces have their
+// own remove flow that also strips config entries.
+func RemoveOrphanWorkspaces(s config.Store, names []string) error {
+	cfg, err := s.Read()
+	if err != nil {
+		return err
+	}
+	if cfg.Root == "" {
+		return fmt.Errorf("workspace root is not configured")
+	}
+	for _, name := range names {
+		if _, tracked := cfg.Workspaces[name]; tracked {
+			return fmt.Errorf("%q is a registered workspace; remove it via the workspace list, not cleanup", name)
+		}
+	}
+	return workspace.RemoveOrphans(cfg.Root, names)
+}
+
 // ReadWorkspaceContext returns the cfg fields needed by read-only flows.
 func ReadWorkspaceContext(s config.Store) (WorkspaceContext, error) {
 	cfg, err := s.Read()

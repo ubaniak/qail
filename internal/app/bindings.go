@@ -196,6 +196,33 @@ func (b *Bindings) RemoveWorkspace(name string) error {
 	return actions.RemoveWorkspace(b.store, name)
 }
 
+// ListOrphanWorkspaces returns directory names under the configured root
+// that are NOT registered workspaces — candidates for cleanup. Settings →
+// Cleanup tab subscribes via callService and pairs this with
+// RemoveOrphanWorkspaces.
+func (b *Bindings) ListOrphanWorkspaces() ([]string, error) {
+	return actions.ListOrphanWorkspaces(b.store)
+}
+
+// RemoveOrphanWorkspaces deletes the named directories from the root.
+// The action refuses to delete registered workspaces even if the caller
+// asks, so the UI doesn't need its own guard.
+func (b *Bindings) RemoveOrphanWorkspaces(names []string) error {
+	return actions.RemoveOrphanWorkspaces(b.store, names)
+}
+
+// OrphanPath returns the absolute path of an orphan directory under the
+// configured workspace root. UI uses it for clipboard copy.
+func (b *Bindings) OrphanPath(name string) (string, error) {
+	return actions.OrphanPath(b.store, name)
+}
+
+// OpenOrphanEditor spawns the default editor against an orphan directory.
+// Mirrors OpenEditor for unregistered dirs surfaced by Settings → Cleanup.
+func (b *Bindings) OpenOrphanEditor(name string) error {
+	return actions.LaunchEditorForOrphan(b.store, name, "")
+}
+
 func (b *Bindings) SetWorkspacePostInstall(name string, scriptsList []string) error {
 	return actions.SetWorkspacePostInstall(b.store, name, scriptsList)
 }

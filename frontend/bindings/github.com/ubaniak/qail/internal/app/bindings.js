@@ -135,6 +135,19 @@ export function ListMuxSessions() {
 }
 
 /**
+ * ListOrphanWorkspaces returns directory names under the configured root
+ * that are NOT registered workspaces — candidates for cleanup. Settings →
+ * Cleanup tab subscribes via callService and pairs this with
+ * RemoveOrphanWorkspaces.
+ * @returns {$CancellablePromise<string[]>}
+ */
+export function ListOrphanWorkspaces() {
+    return $Call.ByID(4174184541).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<{ [_ in string]?: $models.RepoDTO }>}
  */
 export function ListRepos() {
@@ -206,6 +219,26 @@ export function OpenEditorWith(name, editor) {
 }
 
 /**
+ * OpenOrphanEditor spawns the default editor against an orphan directory.
+ * Mirrors OpenEditor for unregistered dirs surfaced by Settings → Cleanup.
+ * @param {string} name
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenOrphanEditor(name) {
+    return $Call.ByID(1957973650, name);
+}
+
+/**
+ * OrphanPath returns the absolute path of an orphan directory under the
+ * configured workspace root. UI uses it for clipboard copy.
+ * @param {string} name
+ * @returns {$CancellablePromise<string>}
+ */
+export function OrphanPath(name) {
+    return $Call.ByID(1286880540, name);
+}
+
+/**
  * ReadScript returns the on-disk contents of the named script so the UI
  * can preview it without delegating to an external editor.
  * @param {string} name
@@ -230,6 +263,17 @@ export function RemoveEditor(name) {
  */
 export function RemoveMuxSession(name) {
     return $Call.ByID(3196518839, name);
+}
+
+/**
+ * RemoveOrphanWorkspaces deletes the named directories from the root.
+ * The action refuses to delete registered workspaces even if the caller
+ * asks, so the UI doesn't need its own guard.
+ * @param {string[]} names
+ * @returns {$CancellablePromise<void>}
+ */
+export function RemoveOrphanWorkspaces(names) {
+    return $Call.ByID(385411569, names);
 }
 
 /**
