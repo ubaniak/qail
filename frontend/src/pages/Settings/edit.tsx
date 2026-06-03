@@ -1,6 +1,7 @@
 // Edit forms for Settings: root path and editor registration.
 
 import { CodeOutlined, FolderOpenOutlined } from "@ant-design/icons";
+import { Dialogs } from "@wailsio/runtime";
 import { Input } from "antd";
 import { useState } from "react";
 import { QButton } from "../../component/Buttons/QButton";
@@ -47,13 +48,29 @@ export const EditRoot = ({ root: initialRoot, onClose }: EditRootProps) => {
 
       <div>
         <label className="text-xs text-zinc-400">Workspace root</label>
-        <Input
-          prefix={<FolderOpenOutlined className="text-zinc-500" />}
-          placeholder="/Users/you/Projects"
-          value={root}
-          onChange={(e) => setRoot(e.target.value)}
-          autoFocus
-        />
+        <div className="flex gap-2">
+          <Input
+            prefix={<FolderOpenOutlined className="text-zinc-500" />}
+            placeholder="/Users/you/Projects"
+            value={root}
+            onChange={(e) => setRoot(e.target.value)}
+            autoFocus
+          />
+          <QButton
+            variant="cancel"
+            onClick={async () => {
+              const picked = await Dialogs.OpenFile({
+                Title: "Choose workspace root",
+                CanChooseDirectories: true,
+                CanChooseFiles: false,
+                CanCreateDirectories: true,
+              });
+              if (typeof picked === "string" && picked) setRoot(picked);
+            }}
+          >
+            Browse
+          </QButton>
+        </div>
         <div className="text-[11px] text-zinc-500 mt-1">
           All workspace clones live under this directory.
         </div>

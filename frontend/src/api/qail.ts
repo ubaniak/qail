@@ -7,6 +7,7 @@ import { requireApi } from "./bindings";
 import { callService, mutateService } from "./hooks";
 import type { CallServiceResult } from "./hooks";
 import type {
+  models,
   WorkspaceMap,
   RepoMap,
   Scope,
@@ -177,6 +178,22 @@ export const mutateOpenOrphanEditor = (
 ): void =>
   mutateService({
     call: async () => requireApi().OpenOrphanEditor(name),
+    onSuccess,
+    onError,
+  });
+
+export const fetchOrphanInspection = async (
+  name: string
+): Promise<models.OrphanInspectionDTO> => requireApi().InspectOrphan(name);
+
+export const mutateRestoreWorkspace = (
+  name: string,
+  repos: string[],
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().RestoreWorkspace(name, repos),
     onSuccess,
     onError,
   });

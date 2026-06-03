@@ -189,6 +189,56 @@ func EditWorkspace(n string, packages []string, allRepos map[string]string) (wor
 	}, nil
 }
 
+// SelectFromList prompts the user to pick one entry from items, using
+// title as the form heading. Returns the chosen value. Used by the
+// restore flow to pick which orphan directory to recover.
+func SelectFromList(title string, items []string) (string, error) {
+	var picked string
+	s := huh.NewSelect[string]().Title(title).Value(&picked)
+	opts := make([]huh.Option[string], len(items))
+	for i, it := range items {
+		opts[i] = huh.NewOption(it, it)
+	}
+	s.Options(opts...)
+	if err := huh.NewForm(huh.NewGroup(s)).Run(); err != nil {
+		return "", err
+	}
+	return picked, nil
+}
+
+// RestoreWorkspaceModel is the result of the restore confirm form: the
+// orphan name (chosen upstream) plus the repos the user kept selected.
+type RestoreWorkspaceModel struct {
+	Name  string
+	Repos []string
+}
+
+// RestoreWorkspace shows the matched repos as a multi-select with every
+// row pre-checked. Caller is expected to have filtered out unknown dirs
+// (and printed them separately) before invoking the form.
+func RestoreWorkspace(name string, options []DetectedRepoOption) (RestoreWorkspaceModel, error) {
+	var chosen []string
+	s := huh.NewMultiSelect[string]().Title(fmt.Sprintf("Restore %q — pick repos to attach", name)).Value(&chosen)
+	opts := make([]huh.Option[string], 0, len(options))
+	for _, d := range options {
+		opts = append(opts, huh.NewOption(d.Label, d.RepoName).Selected(true))
+		chosen = append(chosen, d.RepoName)
+	}
+	s.Options(opts...)
+	if err := huh.NewForm(huh.NewGroup(s)).Run(); err != nil {
+		return RestoreWorkspaceModel{}, err
+	}
+	return RestoreWorkspaceModel{Name: name, Repos: chosen}, nil
+}
+
+// DetectedRepoOption is the form-side view of a matched workspace
+// repo. Label is the display string; RepoName is the registered repo
+// the form returns when the row stays checked.
+type DetectedRepoOption struct {
+	Label    string
+	RepoName string
+}
+
 // SelectWorkspaceName prompts the user to pick a workspace and returns the
 // chosen name. Pure selector — confirmation is the caller's job (chain
 // with forms.Confirm or cmd's confirmOrSkip helper). Splitting the two

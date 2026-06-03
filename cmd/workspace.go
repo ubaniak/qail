@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
@@ -20,13 +21,15 @@ import (
 
 // flag-backed inputs for non-interactive workspace commands.
 var (
-	wsAddRepos    []string
-	wsEditRepos   []string
-	wsCloneRepos  []string
-	wsPIScripts   []string
-	wsPIClear     bool
-	wsOpenEditor  string
-	wsEditorUnset bool
+	wsAddRepos     []string
+	wsEditRepos    []string
+	wsCloneRepos   []string
+	wsRestoreRepos []string
+	wsRestoreAuto  bool
+	wsPIScripts    []string
+	wsPIClear      bool
+	wsOpenEditor   string
+	wsEditorUnset  bool
 )
 
 // resolveWorkspaceName returns a workspace name. Validates against the
@@ -376,6 +379,96 @@ var (
 			}
 		},
 	}
+	restoreWsCmd = &cobra.Command{
+		Use:   "restore [name]",
+		Short: "Re-register an orphan workspace directory under root",
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			s := mustStore()
+
+			name := firstArg(args)
+			if name == "" {
+				orphans, err := actions.ListOrphanWorkspaces(s)
+				if err != nil {
+					log.Fatalln(err)
+				}
+				if len(orphans) == 0 {
+					fmt.Println("No orphan directories to restore.")
+					return
+				}
+				if err := requireTTY("workspace name"); err != nil {
+					log.Fatalln(err)
+				}
+				picked, err := forms.SelectFromList("Choose an orphan to restore", orphans)
+				if err != nil {
+					log.Fatalln(err)
+				}
+				name = picked
+			}
+
+			inspection, err := actions.InspectOrphan(s, name)
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			var repos []string
+			switch {
+			case len(wsRestoreRepos) > 0:
+				repos = wsRestoreRepos
+			case wsRestoreAuto || flagNoTTY:
+				for _, d := range inspection.Repos {
+					if d.Match != "" {
+						repos = append(repos, d.Match)
+					}
+				}
+				for _, d := range inspection.Repos {
+					if d.Match == "" {
+						fmt.Fprintf(os.Stderr, "%s skipping unknown dir %q (origin: %q)\n",
+							color.Yellow(">>>"), d.Dir, d.RemoteURL)
+					}
+				}
+			default:
+				var options []forms.DetectedRepoOption
+				var unknown []workspace.DetectedRepo
+				for _, d := range inspection.Repos {
+					if d.Match != "" {
+						label := d.Match
+						if d.RemoteURL != "" {
+							label = fmt.Sprintf("%s (%s, dir=%s)", d.Match, d.RemoteURL, d.Dir)
+						}
+						options = append(options, forms.DetectedRepoOption{Label: label, RepoName: d.Match})
+					} else {
+						unknown = append(unknown, d)
+					}
+				}
+				if len(unknown) > 0 {
+					fmt.Println(color.Yellow("Unknown directories (not in repo registry, will be skipped):"))
+					for _, u := range unknown {
+						fmt.Printf("  * %s (origin: %s)\n", u.Dir, u.RemoteURL)
+					}
+				}
+				if len(options) == 0 {
+					fmt.Println("No matched repos to attach. Restoring as empty workspace.")
+				} else {
+					r, err := forms.RestoreWorkspace(name, options)
+					if err != nil {
+						log.Fatalln(err)
+					}
+					repos = r.Repos
+				}
+			}
+
+			if err := actions.RestoreWorkspace(s, name, repos); err != nil {
+				log.Fatalln(err)
+			}
+			fmt.Printf("%s restored workspace %s with %d repo(s)\n",
+				color.Green(">>>"), color.Cyan(name), len(repos))
+			if len(inspection.PreservedScripts) > 0 {
+				fmt.Printf("    re-attached scripts: %s\n",
+					color.Cyan(strings.Join(inspection.PreservedScripts, ", ")))
+			}
+		},
+	}
 	cleanWSCmd = &cobra.Command{
 		Use: "clean",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -464,6 +557,8 @@ func init() {
 	postInstallScriptWsCmd.Flags().BoolVar(&wsPIClear, "clear", false, "clear all post-install scripts for the workspace")
 	openWsCmd.Flags().StringVarP(&wsOpenEditor, "editor", "e", "", "editor name override (defaults to workspace/global)")
 	editorWsCmd.Flags().BoolVar(&wsEditorUnset, "unset", false, "clear the workspace's editor override")
+	restoreWsCmd.Flags().StringSliceVarP(&wsRestoreRepos, "repo", "r", nil, "repo names to attach (repeatable; overrides auto-detection)")
+	restoreWsCmd.Flags().BoolVar(&wsRestoreAuto, "auto", false, "attach every detected matched repo without prompting")
 
-	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd, tmuxWsCmd, postInstallScriptWsCmd, exploreCmd, editorWsCmd)
+	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd, tmuxWsCmd, postInstallScriptWsCmd, exploreCmd, editorWsCmd, restoreWsCmd)
 }

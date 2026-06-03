@@ -5,7 +5,8 @@
 // Frosted-glass background matches qail_ui; on macOS frameless the
 // blur shows the desktop behind in a pleasing way.
 
-import { SettingOutlined } from "@ant-design/icons";
+import { CloseOutlined, SettingOutlined } from "@ant-design/icons";
+import { Window } from "@wailsio/runtime";
 import { Button } from "antd";
 
 export type TopBarProps = {
@@ -43,6 +44,14 @@ export default function TopBar({ onSettingsClick, settingsActive }: TopBarProps)
           icon={<SettingOutlined />}
           onClick={onSettingsClick}
           aria-label="Settings"
+        />
+        <Button
+          type="text"
+          shape="circle"
+          size="small"
+          icon={<CloseOutlined />}
+          onClick={() => Window.Close()}
+          aria-label="Close"
         />
       </div>
     </div>

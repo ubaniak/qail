@@ -12,6 +12,7 @@ import { Spin } from "antd";
 import { Clipboard } from "@wailsio/runtime";
 
 import {
+  fetchOrphanInspection,
   mutateAddEditor,
   mutateAddRepo,
   mutateAddScript,
@@ -27,6 +28,7 @@ import {
   mutateRemoveScript,
   mutateRemoveTmux,
   mutateRemoveWorkspace,
+  mutateRestoreWorkspace,
   mutateRunRepoScript,
   mutateRunWorkspaceScript,
   mutateSaveRoot,
@@ -42,7 +44,7 @@ import {
   useListTmux,
   useListWorkspaces,
 } from "../api/qail";
-import type { RepoMap, Scope, Settings, WorkspaceMap } from "../types";
+import type { models, RepoMap, Scope, Settings, WorkspaceMap } from "../types";
 import { useNotification } from "./notification";
 import { useProgress } from "./progress";
 
@@ -115,6 +117,8 @@ export type QailServiceShape = {
     refresh: () => void;
     remove: (names: string[]) => void;
     openEditor: (name: string) => void;
+    inspect: (name: string) => Promise<models.OrphanInspectionDTO>;
+    restore: (name: string, repos: string[]) => void;
   };
 };
 
@@ -427,6 +431,18 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
           name,
           () => toast.success(`Opening "${name}" in editor`),
           (e) => toast.error(`Open failed: ${e.message}`)
+        ),
+      inspect: (name) => fetchOrphanInspection(name),
+      restore: (name, repos) =>
+        mutateRestoreWorkspace(
+          name,
+          repos,
+          () => {
+            orphans.refresh();
+            ws.refresh();
+            toast.success(`Workspace "${name}" restored`);
+          },
+          (e) => toast.error(`Restore failed: ${e.message}`)
         ),
     },
   };

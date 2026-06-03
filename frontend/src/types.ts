@@ -33,6 +33,18 @@ export namespace models {
     path: string;
     command: string;
   }
+
+  export interface DetectedRepoDTO {
+    dir: string;
+    remoteUrl: string;
+    match: string;
+  }
+
+  export interface OrphanInspectionDTO {
+    path: string;
+    repos: DetectedRepoDTO[];
+    preservedScripts: string[];
+  }
 }
 
 export type WorkspaceMap = Record<string, models.WorkspaceDTO>;

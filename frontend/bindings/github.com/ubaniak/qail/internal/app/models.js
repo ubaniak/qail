@@ -71,6 +71,52 @@ export class ConfigDTO {
     }
 }
 
+/**
+ * DetectedRepoDTO mirrors workspace.DetectedRepo for JSON. Match is the
+ * repo name from the registry; "" when the dir didn't resolve.
+ */
+export class DetectedRepoDTO {
+    /**
+     * Creates a new DetectedRepoDTO instance.
+     * @param {Partial<DetectedRepoDTO>} [$$source = {}] - The source object to create the DetectedRepoDTO.
+     */
+    constructor($$source = {}) {
+        if (!("dir" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["dir"] = "";
+        }
+        if (!("remoteUrl" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["remoteUrl"] = "";
+        }
+        if (!("match" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["match"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DetectedRepoDTO instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {DetectedRepoDTO}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DetectedRepoDTO(/** @type {Partial<DetectedRepoDTO>} */($$parsedSource));
+    }
+}
+
 export class EditorDTO {
     /**
      * Creates a new EditorDTO instance.
@@ -152,6 +198,62 @@ export class OpenCommandDTO {
     }
 }
 
+/**
+ * OrphanInspectionDTO is the response shape for InspectOrphan. Path is
+ * the absolute on-disk path; Repos is the per-subdir detection result;
+ * PreservedScripts are the workspace-scoped post-install scripts that
+ * survived the prior remove and will be re-attached on Restore.
+ */
+export class OrphanInspectionDTO {
+    /**
+     * Creates a new OrphanInspectionDTO instance.
+     * @param {Partial<OrphanInspectionDTO>} [$$source = {}] - The source object to create the OrphanInspectionDTO.
+     */
+    constructor($$source = {}) {
+        if (!("path" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["path"] = "";
+        }
+        if (!("repos" in $$source)) {
+            /**
+             * @member
+             * @type {DetectedRepoDTO[]}
+             */
+            this["repos"] = [];
+        }
+        if (!("preservedScripts" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["preservedScripts"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new OrphanInspectionDTO instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {OrphanInspectionDTO}
+     */
+    static createFrom($$source = {}) {
+        const $$createField1_0 = $$createType5;
+        const $$createField2_0 = $$createType6;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("repos" in $$parsedSource) {
+            $$parsedSource["repos"] = $$createField1_0($$parsedSource["repos"]);
+        }
+        if ("preservedScripts" in $$parsedSource) {
+            $$parsedSource["preservedScripts"] = $$createField2_0($$parsedSource["preservedScripts"]);
+        }
+        return new OrphanInspectionDTO(/** @type {Partial<OrphanInspectionDTO>} */($$parsedSource));
+    }
+}
+
 export class RepoDTO {
     /**
      * Creates a new RepoDTO instance.
@@ -182,7 +284,7 @@ export class RepoDTO {
      * @returns {RepoDTO}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType4;
+        const $$createField1_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("postInstall" in $$parsedSource) {
             $$parsedSource["postInstall"] = $$createField1_0($$parsedSource["postInstall"]);
@@ -235,8 +337,8 @@ export class WorkspaceDTO {
      * @returns {WorkspaceDTO}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType4;
-        const $$createField3_0 = $$createType4;
+        const $$createField0_0 = $$createType6;
+        const $$createField3_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repos" in $$parsedSource) {
             $$parsedSource["repos"] = $$createField0_0($$parsedSource["repos"]);
@@ -253,4 +355,6 @@ const $$createType0 = EditorDTO.createFrom;
 const $$createType1 = $Create.Array($$createType0);
 const $$createType2 = WorkspaceDTO.createFrom;
 const $$createType3 = $Create.Map($Create.Any, $$createType2);
-const $$createType4 = $Create.Array($Create.Any);
+const $$createType4 = DetectedRepoDTO.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = $Create.Array($Create.Any);

@@ -9,8 +9,10 @@ export {
 
 export {
     ConfigDTO,
+    DetectedRepoDTO,
     EditorDTO,
     OpenCommandDTO,
+    OrphanInspectionDTO,
     RepoDTO,
     WorkspaceDTO
 } from "./models.js";

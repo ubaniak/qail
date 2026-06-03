@@ -126,11 +126,24 @@ export function GetConfig() {
 }
 
 /**
+ * InspectOrphan resolves an orphan directory and detects what repos
+ * live inside it via go-git, plus surfaces the preserved post-install
+ * scripts the restore will rebind.
+ * @param {string} name
+ * @returns {$CancellablePromise<$models.OrphanInspectionDTO>}
+ */
+export function InspectOrphan(name) {
+    return $Call.ByID(46565281, name).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<string[]>}
  */
 export function ListMuxSessions() {
     return $Call.ByID(1638008752).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType2($result);
     }));
 }
 
@@ -143,7 +156,7 @@ export function ListMuxSessions() {
  */
 export function ListOrphanWorkspaces() {
     return $Call.ByID(4174184541).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType2($result);
     }));
 }
 
@@ -152,7 +165,7 @@ export function ListOrphanWorkspaces() {
  */
 export function ListRepos() {
     return $Call.ByID(3114278478).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType4($result);
     }));
 }
 
@@ -162,7 +175,7 @@ export function ListRepos() {
  */
 export function ListScripts(scope) {
     return $Call.ByID(4015175911, scope).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType2($result);
     }));
 }
 
@@ -171,7 +184,7 @@ export function ListScripts(scope) {
  */
 export function ListWorkspaces() {
     return $Call.ByID(3686458755).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType6($result);
     }));
 }
 
@@ -181,7 +194,7 @@ export function ListWorkspaces() {
  */
 export function OpenCommand(name) {
     return $Call.ByID(586450886, name).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType7($result);
     }));
 }
 
@@ -192,7 +205,7 @@ export function OpenCommand(name) {
  */
 export function OpenCommandWith(name, editor) {
     return $Call.ByID(414860674, name, editor).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType7($result);
     }));
 }
 
@@ -302,6 +315,18 @@ export function RemoveWorkspace(name) {
 }
 
 /**
+ * RestoreWorkspace re-registers an orphan directory as a workspace,
+ * attaching the given registered repos. Preserved post-install scripts
+ * are automatically rebound.
+ * @param {string} name
+ * @param {string[]} repos
+ * @returns {$CancellablePromise<void>}
+ */
+export function RestoreWorkspace(name, repos) {
+    return $Call.ByID(781471698, name, repos);
+}
+
+/**
  * RunRepoScript streams a repo-scoped script execution against
  * workspace/repo. workspace is required because the script runs inside
  * the repo's clone path under that workspace's root.
@@ -391,9 +416,10 @@ export function WriteScript(name, scope, contents) {
 
 // Private type creation functions
 const $$createType0 = $models.ConfigDTO.createFrom;
-const $$createType1 = $Create.Array($Create.Any);
-const $$createType2 = $models.RepoDTO.createFrom;
-const $$createType3 = $Create.Map($Create.Any, $$createType2);
-const $$createType4 = $models.WorkspaceDTO.createFrom;
-const $$createType5 = $Create.Map($Create.Any, $$createType4);
-const $$createType6 = $models.OpenCommandDTO.createFrom;
+const $$createType1 = $models.OrphanInspectionDTO.createFrom;
+const $$createType2 = $Create.Array($Create.Any);
+const $$createType3 = $models.RepoDTO.createFrom;
+const $$createType4 = $Create.Map($Create.Any, $$createType3);
+const $$createType5 = $models.WorkspaceDTO.createFrom;
+const $$createType6 = $Create.Map($Create.Any, $$createType5);
+const $$createType7 = $models.OpenCommandDTO.createFrom;

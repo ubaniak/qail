@@ -223,6 +223,54 @@ func (b *Bindings) OpenOrphanEditor(name string) error {
 	return actions.LaunchEditorForOrphan(b.store, name, "")
 }
 
+// DetectedRepoDTO mirrors workspace.DetectedRepo for JSON. Match is the
+// repo name from the registry; "" when the dir didn't resolve.
+type DetectedRepoDTO struct {
+	Dir       string `json:"dir"`
+	RemoteURL string `json:"remoteUrl"`
+	Match     string `json:"match"`
+}
+
+// OrphanInspectionDTO is the response shape for InspectOrphan. Path is
+// the absolute on-disk path; Repos is the per-subdir detection result;
+// PreservedScripts are the workspace-scoped post-install scripts that
+// survived the prior remove and will be re-attached on Restore.
+type OrphanInspectionDTO struct {
+	Path             string            `json:"path"`
+	Repos            []DetectedRepoDTO `json:"repos"`
+	PreservedScripts []string          `json:"preservedScripts"`
+}
+
+// InspectOrphan resolves an orphan directory and detects what repos
+// live inside it via go-git, plus surfaces the preserved post-install
+// scripts the restore will rebind.
+func (b *Bindings) InspectOrphan(name string) (OrphanInspectionDTO, error) {
+	insp, err := actions.InspectOrphan(b.store, name)
+	if err != nil {
+		return OrphanInspectionDTO{}, err
+	}
+	out := OrphanInspectionDTO{
+		Path:             insp.Path,
+		Repos:            make([]DetectedRepoDTO, 0, len(insp.Repos)),
+		PreservedScripts: append([]string(nil), insp.PreservedScripts...),
+	}
+	for _, d := range insp.Repos {
+		out.Repos = append(out.Repos, DetectedRepoDTO{
+			Dir:       d.Dir,
+			RemoteURL: d.RemoteURL,
+			Match:     d.Match,
+		})
+	}
+	return out, nil
+}
+
+// RestoreWorkspace re-registers an orphan directory as a workspace,
+// attaching the given registered repos. Preserved post-install scripts
+// are automatically rebound.
+func (b *Bindings) RestoreWorkspace(name string, repos []string) error {
+	return actions.RestoreWorkspace(b.store, name, repos)
+}
+
 func (b *Bindings) SetWorkspacePostInstall(name string, scriptsList []string) error {
 	return actions.SetWorkspacePostInstall(b.store, name, scriptsList)
 }

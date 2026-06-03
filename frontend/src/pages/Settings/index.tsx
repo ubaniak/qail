@@ -9,13 +9,15 @@ import {
   FolderOpenOutlined,
   PlusOutlined,
   ReloadOutlined,
+  UndoOutlined,
 } from "@ant-design/icons";
-import { Alert, App, Checkbox, Segmented, Tag } from "antd";
-import { useMemo, useState } from "react";
+import { Alert, App, Checkbox, Modal, Segmented, Spin, Tag } from "antd";
+import { useEffect, useMemo, useState } from "react";
 import { QButton } from "../../component/Buttons/QButton";
 import ToolboxListItem from "../../component/Toolbox/ListItem";
 import { ScrollableLayout } from "../../layouts";
 import { useQailService } from "../../providers/qailservice";
+import type { models } from "../../types";
 import { AddEditor, EditRoot } from "./edit";
 
 type Tab = "general" | "cleanup";
@@ -27,6 +29,7 @@ export const SettingsIndex = () => {
   const [mode, setMode] = useState<Mode>("view");
   const [tab, setTab] = useState<Tab>("general");
   const [selected, setSelected] = useState<string[]>([]);
+  const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
 
   if (mode === "editRoot") {
     return <EditRoot root={list.settings.root} onClose={() => setMode("view")} />;
@@ -152,9 +155,21 @@ export const SettingsIndex = () => {
             onToggleAll={toggleAll}
             onOpenEditor={cleanup.openEditor}
             onCopyPath={(path) => copy.text(path, "Path")}
+            onRestore={(name) => setRestoreTarget(name)}
           />
         )}
       </div>
+      {restoreTarget && (
+        <RestoreModal
+          name={restoreTarget}
+          inspect={cleanup.inspect}
+          onCancel={() => setRestoreTarget(null)}
+          onConfirm={(name, repos) => {
+            cleanup.restore(name, repos);
+            setRestoreTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 
@@ -252,6 +267,7 @@ type CleanupPaneProps = {
   onToggleAll: () => void;
   onOpenEditor: (name: string) => void;
   onCopyPath: (path: string) => void;
+  onRestore: (name: string) => void;
 };
 
 const CleanupPane = ({
@@ -263,6 +279,7 @@ const CleanupPane = ({
   onToggleAll,
   onOpenEditor,
   onCopyPath,
+  onRestore,
 }: CleanupPaneProps) => {
   const sorted = useMemo(() => [...orphans].sort(), [orphans]);
 
@@ -316,6 +333,7 @@ const CleanupPane = ({
             selected={selected.includes(name)}
             onClick={() => onToggle(name)}
             menuItems={[
+              { label: "Restore as workspace", onClick: () => onRestore(name) },
               { label: "Open in editor", onClick: () => onOpenEditor(name) },
               { label: "Copy path", onClick: () => onCopyPath(fullPath) },
             ]}
@@ -325,5 +343,140 @@ const CleanupPane = ({
         );
       })}
     </ScrollableLayout>
+  );
+};
+
+type RestoreModalProps = {
+  name: string;
+  inspect: (name: string) => Promise<models.OrphanInspectionDTO>;
+  onCancel: () => void;
+  onConfirm: (name: string, repos: string[]) => void;
+};
+
+const RestoreModal = ({ name, inspect, onCancel, onConfirm }: RestoreModalProps) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [inspection, setInspection] = useState<models.OrphanInspectionDTO | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    inspect(name)
+      .then((res) => {
+        if (cancelled) return;
+        setInspection(res);
+        const preselected = (res.repos ?? [])
+          .map((r) => r.match)
+          .filter((m): m is string => !!m);
+        setPicked(preselected);
+        setLoading(false);
+      })
+      .catch((e: Error) => {
+        if (cancelled) return;
+        setError(e.message);
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [name, inspect]);
+
+  const matched = (inspection?.repos ?? []).filter((r) => r.match);
+  const unknown = (inspection?.repos ?? []).filter((r) => !r.match);
+  const preserved = inspection?.preservedScripts ?? [];
+
+  const togglePick = (repo: string) =>
+    setPicked((prev) =>
+      prev.includes(repo) ? prev.filter((p) => p !== repo) : [...prev, repo]
+    );
+
+  return (
+    <Modal
+      open
+      title={`Restore "${name}"`}
+      onCancel={onCancel}
+      onOk={() => onConfirm(name, picked)}
+      okText="Restore"
+      okButtonProps={{ disabled: loading || !!error }}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-6">
+          <Spin />
+        </div>
+      ) : error ? (
+        <Alert type="error" showIcon message="Inspection failed" description={error} />
+      ) : (
+        <div className="flex flex-col gap-3">
+          <div className="text-xs text-zinc-400">
+            Re-register the directory as a workspace. Detected repos are listed
+            below; matched repos are pre-selected. Unknown directories will be
+            skipped — register them in the repo list first if you want them
+            attached.
+          </div>
+          {matched.length === 0 ? (
+            <Alert
+              type="info"
+              showIcon
+              message="No matched repos detected"
+              description="The workspace will be restored with no attached repos. You can add them later via Edit."
+            />
+          ) : (
+            <div className="flex flex-col gap-1">
+              <div className="text-xs uppercase tracking-wider text-zinc-500">
+                Matched repos
+              </div>
+              {matched.map((r) => (
+                <label
+                  key={r.dir}
+                  className="flex items-center gap-2 text-sm cursor-pointer"
+                >
+                  <Checkbox
+                    checked={picked.includes(r.match)}
+                    onChange={() => togglePick(r.match)}
+                  />
+                  <span>{r.match}</span>
+                  <span className="text-xs text-zinc-500 font-mono">
+                    ({r.dir}
+                    {r.remoteUrl ? ` → ${r.remoteUrl}` : ""})
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+          {unknown.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <div className="text-xs uppercase tracking-wider text-zinc-500">
+                Unknown directories (skipped)
+              </div>
+              {unknown.map((r) => (
+                <div key={r.dir} className="text-xs font-mono text-zinc-400">
+                  {r.dir}
+                  {r.remoteUrl ? ` — ${r.remoteUrl}` : " — no git remote"}
+                </div>
+              ))}
+            </div>
+          )}
+          {preserved.length > 0 && (
+            <Alert
+              type="info"
+              showIcon
+              icon={<UndoOutlined />}
+              message="Post-install scripts will be re-attached"
+              description={
+                <ul className="!mb-0 pl-5">
+                  {preserved.map((s) => (
+                    <li key={s} className="font-mono text-xs">
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              }
+            />
+          )}
+        </div>
+      )}
+    </Modal>
   );
 };

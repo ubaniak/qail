@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"time"
 
@@ -12,6 +13,10 @@ import (
 	"github.com/ubaniak/qail/internal/scripts"
 	"github.com/ubaniak/qail/internal/workspace"
 )
+
+// osStat is overridable in tests; production uses os.Stat. Restore
+// validates orphan presence by Stat'ing the resolved path.
+var osStat = os.Stat
 
 // AddWorkspace creates a new workspace on disk (cloning each package and
 // running post-install scripts) and registers it in the config. The
@@ -106,16 +111,16 @@ func CreateWorkspaceOnDisk(ctx context.Context, s config.Store, name string, out
 	return buildAndCreate(ctx, cfg, name, profile.Repos, out)
 }
 
-// RemoveWorkspace deletes a workspace from the registry and strips the
-// workspace from the post-install-script attachments. The on-disk
-// directory is not removed; `qail ws clean` handles orphans.
+// RemoveWorkspace deletes a workspace from the registry but leaves its
+// post-install-script attachments in place so a later RestoreWorkspace
+// can re-bind them. The on-disk directory is not removed either; `qail
+// ws clean` is the "kill it for good" path and drops the script entries.
 func RemoveWorkspace(s config.Store, name string) error {
 	if name == "" {
 		return nil
 	}
 	return readWrite(s, func(cfg *config.Config) error {
 		delete(cfg.Workspaces, name)
-		delete(cfg.PostInstallScripts.Workspace, name)
 		return nil
 	})
 }
@@ -258,24 +263,115 @@ func OrphanPath(s config.Store, name string) (string, error) {
 	return path.Join(cfg.Root, name), nil
 }
 
-// RemoveOrphanWorkspaces deletes the named subdirectories of cfg.Root.
+// RemoveOrphanWorkspaces deletes the named subdirectories of cfg.Root
+// and forgets any post-install-script attachments preserved for restore.
 // Defensive: refuses to touch any name that is currently a registered
 // workspace, even if the caller asked — registered workspaces have their
 // own remove flow that also strips config entries.
 func RemoveOrphanWorkspaces(s config.Store, names []string) error {
+	storeMu.Lock()
 	cfg, err := s.Read()
 	if err != nil {
+		storeMu.Unlock()
 		return err
 	}
 	if cfg.Root == "" {
+		storeMu.Unlock()
 		return fmt.Errorf("workspace root is not configured")
 	}
 	for _, name := range names {
 		if _, tracked := cfg.Workspaces[name]; tracked {
+			storeMu.Unlock()
 			return fmt.Errorf("%q is a registered workspace; remove it via the workspace list, not cleanup", name)
 		}
 	}
-	return workspace.RemoveOrphans(cfg.Root, names)
+	if err := workspace.RemoveOrphans(cfg.Root, names); err != nil {
+		storeMu.Unlock()
+		return err
+	}
+	for _, name := range names {
+		delete(cfg.PostInstallScripts.Workspace, name)
+	}
+	err = s.Write(cfg)
+	storeMu.Unlock()
+	return err
+}
+
+// OrphanInspection is the data the restore UI needs to render the
+// confirm modal: orphan path, detected repos (with match info), and the
+// workspace-scoped post-install scripts still attached from before the
+// remove. Scripts attached to repos survive automatically since they're
+// keyed by repo name, not workspace name — they aren't surfaced here.
+type OrphanInspection struct {
+	Path             string
+	Repos            []workspace.DetectedRepo
+	PreservedScripts []string
+}
+
+// InspectOrphan resolves the orphan path, walks its subdirs with go-git,
+// and returns DetectedRepo entries plus the preserved workspace scripts
+// from the registry. Refuses if name is empty, root unconfigured, or
+// name is actually a registered workspace.
+func InspectOrphan(s config.Store, name string) (OrphanInspection, error) {
+	if name == "" {
+		return OrphanInspection{}, fmt.Errorf("orphan name must not be empty")
+	}
+	cfg, err := s.Read()
+	if err != nil {
+		return OrphanInspection{}, err
+	}
+	if cfg.Root == "" {
+		return OrphanInspection{}, fmt.Errorf("workspace root is not configured")
+	}
+	if _, tracked := cfg.Workspaces[name]; tracked {
+		return OrphanInspection{}, fmt.Errorf("%q is a registered workspace; use the workspace flow", name)
+	}
+	wsPath := path.Join(cfg.Root, name)
+	repos, err := workspace.DetectRepos(wsPath, cfg.Repos)
+	if err != nil {
+		return OrphanInspection{}, err
+	}
+	preserved := append([]string(nil), cfg.PostInstallScripts.Workspace[name]...)
+	return OrphanInspection{Path: wsPath, Repos: repos, PreservedScripts: preserved}, nil
+}
+
+// RestoreWorkspace re-registers an orphan directory as a workspace
+// attached to the given repo names. Repos must already exist in
+// cfg.Repos; unknown names are rejected so the registry stays
+// internally consistent. The on-disk dir must exist (the user is
+// restoring it, not creating from scratch). Workspace-scoped scripts
+// preserved through the prior remove are kept in place, so the restored
+// workspace inherits its old post-install attachments automatically.
+func RestoreWorkspace(s config.Store, name string, repos []string) error {
+	if name == "" {
+		return fmt.Errorf("workspace name must not be empty")
+	}
+	return readWrite(s, func(cfg *config.Config) error {
+		if cfg.Root == "" {
+			return fmt.Errorf("workspace root is not configured")
+		}
+		if _, exists := cfg.Workspaces[name]; exists {
+			return fmt.Errorf("workspace %q is already registered", name)
+		}
+		wsPath := path.Join(cfg.Root, name)
+		info, err := osStat(wsPath)
+		if err != nil {
+			return fmt.Errorf("orphan directory not found: %v", err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("%s is not a directory", wsPath)
+		}
+		for _, r := range repos {
+			if _, ok := cfg.Repos[r]; !ok {
+				return fmt.Errorf("repo %q not registered", r)
+			}
+		}
+		if cfg.Workspaces == nil {
+			cfg.Workspaces = make(config.Workspace)
+		}
+		cfg.Workspaces[name] = config.NewWorkspaceProfile(append([]string(nil), repos...), time.Now().UTC())
+		return nil
+	})
 }
 
 // ReadWorkspaceContext returns the cfg fields needed by read-only flows.
