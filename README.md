@@ -1,5 +1,8 @@
 # qail
 
+some changes
+
+
 `qail` (pronounced *kyle*) is a workspace manager for multi-repo projects. CLI, HTTP API, and macOS/Windows/Linux desktop app all share the same engine.
 
 Group git repos into a workspace, clone them together, open the whole set in your editor or a tmux session. Run post-install scripts per repo or per workspace.
