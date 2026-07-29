@@ -33,6 +33,7 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 		&repoRow{},
 		&scriptRow{},
 		&editorRow{},
+		&aiRow{},
 	); err != nil {
 		return nil, err
 	}
@@ -83,6 +84,7 @@ type workspaceRow struct {
 	Name     string `gorm:"primaryKey"`
 	LastUsed time.Time
 	Editor   string
+	AI       string
 }
 
 func (workspaceRow) TableName() string { return "workspaces" }
@@ -93,6 +95,13 @@ type editorRow struct {
 }
 
 func (editorRow) TableName() string { return "editors" }
+
+type aiRow struct {
+	Name    string `gorm:"primaryKey"`
+	Command string
+}
+
+func (aiRow) TableName() string { return "ais" }
 
 type workspaceRepoRow struct {
 	WorkspaceName string `gorm:"primaryKey"`
@@ -135,6 +144,8 @@ func (s *SQLiteStore) Read() (Config, error) {
 			cfg.Root = set.Value
 		case "default_editor":
 			cfg.DefaultEditor = set.Value
+		case "default_ai":
+			cfg.DefaultAI = set.Value
 		}
 	}
 
@@ -147,6 +158,18 @@ func (s *SQLiteStore) Read() (Config, error) {
 		cfg.Editors = make([]Editor, len(editors))
 		for i, e := range editors {
 			cfg.Editors[i] = Editor{Name: e.Name, Command: e.Command}
+		}
+	}
+
+	// ais
+	var ais []aiRow
+	if err := s.db.Order("name asc").Find(&ais).Error; err != nil {
+		return cfg, err
+	}
+	if len(ais) > 0 {
+		cfg.AIs = make([]AI, len(ais))
+		for i, a := range ais {
+			cfg.AIs[i] = AI{Name: a.Name, Command: a.Command}
 		}
 	}
 
@@ -182,6 +205,7 @@ func (s *SQLiteStore) Read() (Config, error) {
 				Repos:    repoNames,
 				LastUsed: w.LastUsed,
 				Editor:   w.Editor,
+				AI:       w.AI,
 			}
 		}
 	}
@@ -213,6 +237,9 @@ func (s *SQLiteStore) Write(cfg Config) error {
 		if err := tx.Save(&settingRow{Key: "default_editor", Value: cfg.DefaultEditor}).Error; err != nil {
 			return err
 		}
+		if err := tx.Save(&settingRow{Key: "default_ai", Value: cfg.DefaultAI}).Error; err != nil {
+			return err
+		}
 
 		// editors — replace all
 		if err := tx.Exec("DELETE FROM editors").Error; err != nil {
@@ -220,6 +247,16 @@ func (s *SQLiteStore) Write(cfg Config) error {
 		}
 		for _, e := range cfg.Editors {
 			if err := tx.Create(&editorRow{Name: e.Name, Command: e.Command}).Error; err != nil {
+				return err
+			}
+		}
+
+		// ais — replace all
+		if err := tx.Exec("DELETE FROM ais").Error; err != nil {
+			return err
+		}
+		for _, a := range cfg.AIs {
+			if err := tx.Create(&aiRow{Name: a.Name, Command: a.Command}).Error; err != nil {
 				return err
 			}
 		}
@@ -242,7 +279,7 @@ func (s *SQLiteStore) Write(cfg Config) error {
 			return err
 		}
 		for name, profile := range cfg.Workspaces {
-			if err := tx.Create(&workspaceRow{Name: name, LastUsed: profile.LastUsed, Editor: profile.Editor}).Error; err != nil {
+			if err := tx.Create(&workspaceRow{Name: name, LastUsed: profile.LastUsed, Editor: profile.Editor, AI: profile.AI}).Error; err != nil {
 				return err
 			}
 			for _, repoName := range profile.Repos {

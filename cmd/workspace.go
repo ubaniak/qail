@@ -30,6 +30,8 @@ var (
 	wsPIClear      bool
 	wsOpenEditor   string
 	wsEditorUnset  bool
+	wsOpenAI       string
+	wsAIUnset      bool
 )
 
 // resolveWorkspaceName returns a workspace name. Validates against the
@@ -117,6 +119,42 @@ var (
 				log.Fatalln("editor name required (or pass --unset)")
 			}
 			if err := actions.SetWorkspaceEditor(s, ws, editorName); err != nil {
+				log.Fatalln(err)
+			}
+		},
+	}
+	aiWsCmd = &cobra.Command{
+		Use:   "ai <workspace> [name]",
+		Short: "Set the workspace's preferred AI tool (or --unset to inherit global)",
+		Args:  cobra.RangeArgs(1, 2),
+		Run: func(cmd *cobra.Command, args []string) {
+			s := mustStore()
+			ws := args[0]
+			var aiName string
+			if wsAIUnset {
+				aiName = ""
+			} else if len(args) == 2 {
+				aiName = args[1]
+			} else {
+				log.Fatalln("ai name required (or pass --unset)")
+			}
+			if err := actions.SetWorkspaceAI(s, ws, aiName); err != nil {
+				log.Fatalln(err)
+			}
+		},
+	}
+	aiOpenWsCmd = &cobra.Command{
+		Use:     "ai-open [name]",
+		Aliases: []string{"ao"},
+		Short:   "Open the workspace with the configured AI tool in a new terminal",
+		Args:    cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			s := mustStore()
+			name, err := resolveWorkspaceName(s, firstArg(args))
+			if err != nil {
+				log.Fatalln(err)
+			}
+			if err := actions.OpenWorkspaceWithAI(context.Background(), s, runner.NewOS(), name, wsOpenAI); err != nil {
 				log.Fatalln(err)
 			}
 		},
@@ -559,6 +597,8 @@ func init() {
 	editorWsCmd.Flags().BoolVar(&wsEditorUnset, "unset", false, "clear the workspace's editor override")
 	restoreWsCmd.Flags().StringSliceVarP(&wsRestoreRepos, "repo", "r", nil, "repo names to attach (repeatable; overrides auto-detection)")
 	restoreWsCmd.Flags().BoolVar(&wsRestoreAuto, "auto", false, "attach every detected matched repo without prompting")
+	aiOpenWsCmd.Flags().StringVarP(&wsOpenAI, "ai", "i", "", "AI tool override (defaults to workspace/global)")
+	aiWsCmd.Flags().BoolVar(&wsAIUnset, "unset", false, "clear the workspace's AI override")
 
-	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd, tmuxWsCmd, postInstallScriptWsCmd, exploreCmd, editorWsCmd, restoreWsCmd)
+	wsCmd.AddCommand(addWsCmd, listWsCmd, createWsCmd, cloneWsCmd, editWsCmd, removeWsCmd, cdWsCmd, openWsCmd, cleanWSCmd, tmuxWsCmd, postInstallScriptWsCmd, exploreCmd, editorWsCmd, restoreWsCmd, aiWsCmd, aiOpenWsCmd)
 }

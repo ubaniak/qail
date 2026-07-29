@@ -8,6 +8,7 @@ export namespace models {
     repos: string[];
     lastUsed: string; // ISO-8601 from time.Time JSON marshal
     editor?: string;
+    ai?: string;
     postInstall?: string[];
   }
 
@@ -16,10 +17,17 @@ export namespace models {
     command: string;
   }
 
+  export interface AIDTO {
+    name: string;
+    command: string;
+  }
+
   export interface ConfigDTO {
     root: string;
     editors: EditorDTO[];
     defaultEditor: string;
+    ais: AIDTO[];
+    defaultAI: string;
     workspaces: Record<string, WorkspaceDTO>;
   }
 
@@ -30,6 +38,12 @@ export namespace models {
 
   export interface OpenCommandDTO {
     editor: string;
+    path: string;
+    command: string;
+  }
+
+  export interface OpenAICommandDTO {
+    ai: string;
     path: string;
     command: string;
   }
@@ -54,6 +68,8 @@ export type Settings = {
   root: string;
   editors: models.EditorDTO[];
   defaultEditor: string;
+  ais: models.AIDTO[];
+  defaultAI: string;
 };
 
 // Scope mirrors scripts.Scope in the Go backend. Every scripts binding

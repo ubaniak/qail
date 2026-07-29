@@ -9,6 +9,7 @@ import {
   FolderOpenOutlined,
   PlusOutlined,
   ReloadOutlined,
+  RobotOutlined,
   UndoOutlined,
 } from "@ant-design/icons";
 import { Alert, App, Checkbox, Modal, Segmented, Spin, Tag } from "antd";
@@ -18,13 +19,13 @@ import ToolboxListItem from "../../component/Toolbox/ListItem";
 import { ScrollableLayout } from "../../layouts";
 import { useQailService } from "../../providers/qailservice";
 import type { models } from "../../types";
-import { AddEditor, EditRoot } from "./edit";
+import { AddAI, AddEditor, EditRoot } from "./edit";
 
 type Tab = "general" | "cleanup";
-type Mode = "view" | "editRoot" | "addEditor";
+type Mode = "view" | "editRoot" | "addEditor" | "addAI";
 
 export const SettingsIndex = () => {
-  const { list, editors, cleanup, copy } = useQailService();
+  const { list, editors, ais, cleanup, copy } = useQailService();
   const { modal } = App.useApp();
   const [mode, setMode] = useState<Mode>("view");
   const [tab, setTab] = useState<Tab>("general");
@@ -36,6 +37,9 @@ export const SettingsIndex = () => {
   }
   if (mode === "addEditor") {
     return <AddEditor onClose={() => setMode("view")} />;
+  }
+  if (mode === "addAI") {
+    return <AddAI onClose={() => setMode("view")} />;
   }
 
   const orphans = cleanup.orphans;
@@ -144,7 +148,11 @@ export const SettingsIndex = () => {
 
       <div className="flex-1 min-h-0">
         {tab === "general" ? (
-          <GeneralPane onAddEditor={() => setMode("addEditor")} onEditRoot={() => setMode("editRoot")} />
+          <GeneralPane
+            onAddEditor={() => setMode("addEditor")}
+            onAddAI={() => setMode("addAI")}
+            onEditRoot={() => setMode("editRoot")}
+          />
         ) : (
           <CleanupPane
             root={list.settings.root}
@@ -173,7 +181,15 @@ export const SettingsIndex = () => {
     </div>
   );
 
-  function GeneralPane({ onAddEditor, onEditRoot }: { onAddEditor: () => void; onEditRoot: () => void }) {
+  function GeneralPane({
+    onAddEditor,
+    onAddAI,
+    onEditRoot,
+  }: {
+    onAddEditor: () => void;
+    onAddAI: () => void;
+    onEditRoot: () => void;
+  }) {
     return (
       <ScrollableLayout>
         <ToolboxListItem
@@ -248,6 +264,65 @@ export const SettingsIndex = () => {
                   <span className="font-mono text-xs">{e.command}</span>
                 }
                 icon={<CodeOutlined />}
+                menuItems={menuItems}
+              />
+            );
+          })
+        )}
+
+        <div className="px-3 pt-3 pb-1 flex items-center justify-between">
+          <div className="text-xs text-zinc-400 uppercase tracking-wider">
+            AIs
+          </div>
+          <QButton
+            variant="accent"
+            icon={<PlusOutlined />}
+            onClick={onAddAI}
+          >
+            Add
+          </QButton>
+        </div>
+
+        {list.settings.ais.length === 0 ? (
+          <div className="px-3 py-2 text-xs text-zinc-500">
+            No AI tools configured. Add one to enable "open in AI".
+          </div>
+        ) : (
+          list.settings.ais.map((a) => {
+            const isDefault = a.name === list.settings.defaultAI;
+            const menuItems = [
+              ...(isDefault
+                ? []
+                : [
+                    {
+                      label: "Set as default",
+                      onClick: () => ais.setDefault(a.name),
+                    },
+                  ]),
+              {
+                label: "Remove",
+                danger: true,
+                onClick: () => ais.remove(a.name),
+              },
+            ];
+            return (
+              <ToolboxListItem
+                key={a.name}
+                id={`ai-${a.name}`}
+                primary={
+                  <div className="flex items-center gap-2">
+                    <span>{a.name}</span>
+                    {isDefault && (
+                      <Tag color="gold" className="!text-[10px] !leading-4 !m-0">
+                        Default
+                      </Tag>
+                    )}
+                  </div>
+                }
+                secondary={
+                  <span className="font-mono text-xs">{a.command}</span>
+                }
+                icon={<RobotOutlined />}
                 menuItems={menuItems}
               />
             );

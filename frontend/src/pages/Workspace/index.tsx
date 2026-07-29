@@ -17,7 +17,7 @@ import { EditWorkspace } from "./edit";
 import { RemoveWorkspace } from "./remove";
 
 export const WorkspaceIndex = () => {
-  const { list, open, mux, cd, editors } = useQailService();
+  const { list, open, mux, cd, editors, ais } = useQailService();
   const { toast } = useNotification();
 
   const [query, setQuery] = useState("");
@@ -39,6 +39,8 @@ export const WorkspaceIndex = () => {
 
   const allEditors = list.settings.editors;
   const defaultEditor = list.settings.defaultEditor;
+  const allAIs = list.settings.ais;
+  const defaultAI = list.settings.defaultAI;
 
   const renderBody = () => {
     if (filtered.length === 0) {
@@ -93,6 +95,55 @@ export const WorkspaceIndex = () => {
               ]
             : [];
 
+          const effectiveAI = ws.ai || defaultAI;
+          const wsHasAIOverride = !!ws.ai;
+
+          const otherAIs = allAIs.filter((a) => a.name !== effectiveAI);
+          const aiMenu: MenuAction[] =
+            allAIs.length === 0
+              ? []
+              : [
+                  {
+                    label: effectiveAI
+                      ? `Open in AI (${effectiveAI})`
+                      : "Open in AI",
+                    onClick: (id) => open.workspaceAI(id),
+                  },
+                  ...(otherAIs.length > 0
+                    ? [
+                        {
+                          label: "Open in AI...",
+                          children: otherAIs.map<MenuAction>((a) => ({
+                            label: a.name,
+                            onClick: (id) => open.workspaceAI(id, a.name),
+                          })),
+                        },
+                      ]
+                    : []),
+                ];
+
+          const setAIMenu: MenuAction[] =
+            allAIs.length === 0
+              ? []
+              : [
+                  {
+                    label: "Set workspace AI",
+                    children: allAIs.map<MenuAction>((a) => ({
+                      label: a.name,
+                      onClick: (id) => ais.setWorkspace(id, a.name),
+                    })),
+                  },
+                ];
+
+          const inheritAIMenu: MenuAction[] = wsHasAIOverride
+            ? [
+                {
+                  label: "Inherit global default AI",
+                  onClick: (id) => ais.setWorkspace(id, ""),
+                },
+              ]
+            : [];
+
           return (
             <ToolboxListItem
               key={name}
@@ -103,6 +154,11 @@ export const WorkspaceIndex = () => {
                   {wsHasOverride && (
                     <Tag color="purple" className="!text-[10px] !leading-4 !m-0">
                       editor: {ws.editor}
+                    </Tag>
+                  )}
+                  {wsHasAIOverride && (
+                    <Tag color="cyan" className="!text-[10px] !leading-4 !m-0">
+                      AI: {ws.ai}
                     </Tag>
                   )}
                 </div>
@@ -141,6 +197,9 @@ export const WorkspaceIndex = () => {
               menuItems={[
                 ...openMenu,
                 ...inheritMenu,
+                ...aiMenu,
+                ...setAIMenu,
+                ...inheritAIMenu,
                 { label: "Copy cd", onClick: (id) => cd.workspace(id) },
                 {
                   label: "Copy tmux attach",

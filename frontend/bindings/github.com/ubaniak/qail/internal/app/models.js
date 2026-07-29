@@ -10,6 +10,41 @@ import { Create as $Create } from "@wailsio/runtime";
 // @ts-ignore: Unused imports
 import * as time$0 from "../../../../../time/models.js";
 
+export class AIDTO {
+    /**
+     * Creates a new AIDTO instance.
+     * @param {Partial<AIDTO>} [$$source = {}] - The source object to create the AIDTO.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("command" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["command"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AIDTO instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {AIDTO}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new AIDTO(/** @type {Partial<AIDTO>} */($$parsedSource));
+    }
+}
+
 /**
  * ConfigDTO mirrors the HTTP layer's configResponse so the same React
  * types compile against either backend.
@@ -41,6 +76,20 @@ export class ConfigDTO {
              */
             this["defaultEditor"] = "";
         }
+        if (!("ais" in $$source)) {
+            /**
+             * @member
+             * @type {AIDTO[]}
+             */
+            this["ais"] = [];
+        }
+        if (!("defaultAI" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["defaultAI"] = "";
+        }
         if (!("workspaces" in $$source)) {
             /**
              * @member
@@ -60,12 +109,16 @@ export class ConfigDTO {
     static createFrom($$source = {}) {
         const $$createField1_0 = $$createType1;
         const $$createField3_0 = $$createType3;
+        const $$createField5_0 = $$createType5;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("editors" in $$parsedSource) {
             $$parsedSource["editors"] = $$createField1_0($$parsedSource["editors"]);
         }
+        if ("ais" in $$parsedSource) {
+            $$parsedSource["ais"] = $$createField3_0($$parsedSource["ais"]);
+        }
         if ("workspaces" in $$parsedSource) {
-            $$parsedSource["workspaces"] = $$createField3_0($$parsedSource["workspaces"]);
+            $$parsedSource["workspaces"] = $$createField5_0($$parsedSource["workspaces"]);
         }
         return new ConfigDTO(/** @type {Partial<ConfigDTO>} */($$parsedSource));
     }
@@ -149,6 +202,53 @@ export class EditorDTO {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new EditorDTO(/** @type {Partial<EditorDTO>} */($$parsedSource));
+    }
+}
+
+/**
+ * OpenAICommandDTO is returned to JS so the UI can display + copy the AI
+ * tool invocation — the app cannot exec a TTY program in place; it must
+ * spawn a terminal (see OpenAI/OpenAIWith).
+ */
+export class OpenAICommandDTO {
+    /**
+     * Creates a new OpenAICommandDTO instance.
+     * @param {Partial<OpenAICommandDTO>} [$$source = {}] - The source object to create the OpenAICommandDTO.
+     */
+    constructor($$source = {}) {
+        if (!("ai" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["ai"] = "";
+        }
+        if (!("path" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["path"] = "";
+        }
+        if (!("command" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["command"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new OpenAICommandDTO instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {OpenAICommandDTO}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new OpenAICommandDTO(/** @type {Partial<OpenAICommandDTO>} */($$parsedSource));
     }
 }
 
@@ -241,8 +341,8 @@ export class OrphanInspectionDTO {
      * @returns {OrphanInspectionDTO}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType5;
-        const $$createField2_0 = $$createType6;
+        const $$createField1_0 = $$createType7;
+        const $$createField2_0 = $$createType8;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repos" in $$parsedSource) {
             $$parsedSource["repos"] = $$createField1_0($$parsedSource["repos"]);
@@ -284,7 +384,7 @@ export class RepoDTO {
      * @returns {RepoDTO}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType6;
+        const $$createField1_0 = $$createType8;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("postInstall" in $$parsedSource) {
             $$parsedSource["postInstall"] = $$createField1_0($$parsedSource["postInstall"]);
@@ -323,6 +423,13 @@ export class WorkspaceDTO {
         if (/** @type {any} */(false)) {
             /**
              * @member
+             * @type {string | undefined}
+             */
+            this["ai"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
              * @type {string[] | undefined}
              */
             this["postInstall"] = undefined;
@@ -337,14 +444,14 @@ export class WorkspaceDTO {
      * @returns {WorkspaceDTO}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType6;
-        const $$createField3_0 = $$createType6;
+        const $$createField0_0 = $$createType8;
+        const $$createField4_0 = $$createType8;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("repos" in $$parsedSource) {
             $$parsedSource["repos"] = $$createField0_0($$parsedSource["repos"]);
         }
         if ("postInstall" in $$parsedSource) {
-            $$parsedSource["postInstall"] = $$createField3_0($$parsedSource["postInstall"]);
+            $$parsedSource["postInstall"] = $$createField4_0($$parsedSource["postInstall"]);
         }
         return new WorkspaceDTO(/** @type {Partial<WorkspaceDTO>} */($$parsedSource));
     }
@@ -353,8 +460,10 @@ export class WorkspaceDTO {
 // Private type creation functions
 const $$createType0 = EditorDTO.createFrom;
 const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = WorkspaceDTO.createFrom;
-const $$createType3 = $Create.Map($Create.Any, $$createType2);
-const $$createType4 = DetectedRepoDTO.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = $Create.Array($Create.Any);
+const $$createType2 = AIDTO.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = WorkspaceDTO.createFrom;
+const $$createType5 = $Create.Map($Create.Any, $$createType4);
+const $$createType6 = DetectedRepoDTO.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = $Create.Array($Create.Any);

@@ -23,6 +23,15 @@ import * as $models from "./models.js";
  * @param {string} command
  * @returns {$CancellablePromise<void>}
  */
+export function AddAI(name, command) {
+    return $Call.ByID(2121057074, name, command);
+}
+
+/**
+ * @param {string} name
+ * @param {string} command
+ * @returns {$CancellablePromise<void>}
+ */
 export function AddEditor(name, command) {
     return $Call.ByID(1705413485, name, command);
 }
@@ -189,12 +198,54 @@ export function ListWorkspaces() {
 }
 
 /**
+ * OpenAI spawns the configured AI tool against the workspace in a new
+ * terminal window and returns immediately. Use OpenAICommand if the
+ * caller wants the invocation as data instead.
+ * @param {string} name
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenAI(name) {
+    return $Call.ByID(2060951651, name);
+}
+
+/**
+ * @param {string} name
+ * @returns {$CancellablePromise<$models.OpenAICommandDTO>}
+ */
+export function OpenAICommand(name) {
+    return $Call.ByID(3891856368, name).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType7($result);
+    }));
+}
+
+/**
+ * @param {string} name
+ * @param {string} ai
+ * @returns {$CancellablePromise<$models.OpenAICommandDTO>}
+ */
+export function OpenAICommandWith(name, ai) {
+    return $Call.ByID(1360991880, name, ai).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType7($result);
+    }));
+}
+
+/**
+ * OpenAIWith spawns a specific AI tool (by name) against the workspace.
+ * @param {string} name
+ * @param {string} ai
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenAIWith(name, ai) {
+    return $Call.ByID(1538889803, name, ai);
+}
+
+/**
  * @param {string} name
  * @returns {$CancellablePromise<$models.OpenCommandDTO>}
  */
 export function OpenCommand(name) {
     return $Call.ByID(586450886, name).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType8($result);
     }));
 }
 
@@ -205,7 +256,7 @@ export function OpenCommand(name) {
  */
 export function OpenCommandWith(name, editor) {
     return $Call.ByID(414860674, name, editor).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType8($result);
     }));
 }
 
@@ -229,6 +280,17 @@ export function OpenEditor(name) {
  */
 export function OpenEditorWith(name, editor) {
     return $Call.ByID(281778612, name, editor);
+}
+
+/**
+ * OpenOrphanAI spawns the default AI tool against an orphan directory in
+ * a new terminal window. Mirrors OpenAI for unregistered dirs surfaced
+ * by Settings → Cleanup.
+ * @param {string} name
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenOrphanAI(name) {
+    return $Call.ByID(3444827561, name);
 }
 
 /**
@@ -260,6 +322,14 @@ export function OrphanPath(name) {
  */
 export function ReadScript(name, scope) {
     return $Call.ByID(3261568490, name, scope);
+}
+
+/**
+ * @param {string} name
+ * @returns {$CancellablePromise<void>}
+ */
+export function RemoveAI(name) {
+    return $Call.ByID(2220082791, name);
 }
 
 /**
@@ -363,6 +433,14 @@ export function ScriptsDir() {
  * @param {string} name
  * @returns {$CancellablePromise<void>}
  */
+export function SetDefaultAI(name) {
+    return $Call.ByID(882320146, name);
+}
+
+/**
+ * @param {string} name
+ * @returns {$CancellablePromise<void>}
+ */
 export function SetDefaultEditor(name) {
     return $Call.ByID(1247010445, name);
 }
@@ -382,6 +460,15 @@ export function SetRepoPostInstall(repo, scriptsList) {
  */
 export function SetRoot(value) {
     return $Call.ByID(2376132863, value);
+}
+
+/**
+ * @param {string} workspace
+ * @param {string} name
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetWorkspaceAI(workspace, name) {
+    return $Call.ByID(3838668582, workspace, name);
 }
 
 /**
@@ -422,4 +509,5 @@ const $$createType3 = $models.RepoDTO.createFrom;
 const $$createType4 = $Create.Map($Create.Any, $$createType3);
 const $$createType5 = $models.WorkspaceDTO.createFrom;
 const $$createType6 = $Create.Map($Create.Any, $$createType5);
-const $$createType7 = $models.OpenCommandDTO.createFrom;
+const $$createType7 = $models.OpenAICommandDTO.createFrom;
+const $$createType8 = $models.OpenCommandDTO.createFrom;

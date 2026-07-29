@@ -47,6 +47,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/config/editors", s.handleAddEditor)
 	mux.HandleFunc("DELETE /api/config/editors/{name}", s.handleRemoveEditor)
 	mux.HandleFunc("PUT /api/config/editors/default", s.handleSetDefaultEditor)
+	mux.HandleFunc("POST /api/config/ais", s.handleAddAI)
+	mux.HandleFunc("DELETE /api/config/ais/{name}", s.handleRemoveAI)
+	mux.HandleFunc("PUT /api/config/ais/default", s.handleSetDefaultAI)
 
 	// repos
 	mux.HandleFunc("GET /api/repos", s.handleListRepos)
@@ -63,9 +66,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/workspaces/{name}/create", s.handleCreateWorkspaceOnDisk)
 	mux.HandleFunc("PUT /api/workspaces/{name}/post-install", s.handleSetWorkspacePostInstall)
 	mux.HandleFunc("PUT /api/workspaces/{name}/editor", s.handleSetWorkspaceEditor)
+	mux.HandleFunc("PUT /api/workspaces/{name}/ai", s.handleSetWorkspaceAI)
 	mux.HandleFunc("GET /api/workspaces/{name}/path", s.handleCdWorkspace)
 	mux.HandleFunc("GET /api/workspaces/{name}/mux", s.handleMuxWorkspace)
 	mux.HandleFunc("GET /api/workspaces/{name}/open-cmd", s.handleOpenWorkspaceCmd)
+	mux.HandleFunc("GET /api/workspaces/{name}/open-ai-cmd", s.handleOpenWorkspaceAICmd)
 
 	// scripts
 	mux.HandleFunc("GET /api/scripts", s.handleListScripts)

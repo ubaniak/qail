@@ -13,6 +13,7 @@ import { Clipboard } from "@wailsio/runtime";
 
 import {
   fetchOrphanInspection,
+  mutateAddAI,
   mutateAddEditor,
   mutateAddRepo,
   mutateAddScript,
@@ -20,8 +21,11 @@ import {
   mutateCreateWorkspace,
   mutateEditWorkspace,
   mutateMuxWorkspace,
+  mutateOpenOrphanAI,
   mutateOpenOrphanEditor,
   mutateOpenWorkspace,
+  mutateOpenWorkspaceAI,
+  mutateRemoveAI,
   mutateRemoveEditor,
   mutateRemoveOrphanWorkspaces,
   mutateRemoveRepo,
@@ -32,8 +36,10 @@ import {
   mutateRunRepoScript,
   mutateRunWorkspaceScript,
   mutateSaveRoot,
+  mutateSetDefaultAI,
   mutateSetDefaultEditor,
   mutateSetRepoPostInstall,
+  mutateSetWorkspaceAI,
   mutateSetWorkspaceEditor,
   mutateSetWorkspacePostInstall,
   mutateWriteScript,
@@ -75,6 +81,7 @@ export type QailServiceShape = {
   };
   open: {
     workspace: (name: string, editor?: string) => void;
+    workspaceAI: (name: string, ai?: string) => void;
   };
   mux: {
     attach: (name: string) => void;
@@ -90,6 +97,12 @@ export type QailServiceShape = {
     root: (root: string) => void;
   };
   editors: {
+    add: (name: string, command: string) => void;
+    remove: (name: string) => void;
+    setDefault: (name: string) => void;
+    setWorkspace: (workspace: string, name: string) => void;
+  };
+  ais: {
     add: (name: string, command: string) => void;
     remove: (name: string) => void;
     setDefault: (name: string) => void;
@@ -117,6 +130,7 @@ export type QailServiceShape = {
     refresh: () => void;
     remove: (names: string[]) => void;
     openEditor: (name: string) => void;
+    openAI: (name: string) => void;
     inspect: (name: string) => Promise<models.OrphanInspectionDTO>;
     restore: (name: string, repos: string[]) => void;
   };
@@ -241,6 +255,16 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
           (e) => toast.error(`Open failed: ${e.message}`),
           editor
         ),
+      workspaceAI: (name, ai) =>
+        mutateOpenWorkspaceAI(
+          name,
+          () =>
+            toast.success(
+              ai ? `Opening "${name}" in ${ai}` : `Opening "${name}" in AI`
+            ),
+          (e) => toast.error(`Open failed: ${e.message}`),
+          ai
+        ),
     },
     mux: {
       attach: (name) =>
@@ -322,6 +346,51 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
             toast.success(
               name
                 ? `${workspace} → editor "${name}"`
+                : `${workspace} → inherits default`
+            );
+          },
+          (e) => toast.error(`Update failed: ${e.message}`)
+        ),
+    },
+    ais: {
+      add: (name, command) =>
+        mutateAddAI(
+          name,
+          command,
+          () => {
+            settings.refresh();
+            toast.success(`AI "${name}" added`);
+          },
+          (e) => toast.error(`Add AI failed: ${e.message}`)
+        ),
+      remove: (name) =>
+        mutateRemoveAI(
+          name,
+          () => {
+            settings.refresh();
+            ws.refresh();
+            toast.success(`AI "${name}" removed`);
+          },
+          (e) => toast.error(`Remove AI failed: ${e.message}`)
+        ),
+      setDefault: (name) =>
+        mutateSetDefaultAI(
+          name,
+          () => {
+            settings.refresh();
+            toast.success(`Default AI set to "${name}"`);
+          },
+          (e) => toast.error(`Set default failed: ${e.message}`)
+        ),
+      setWorkspace: (workspace, name) =>
+        mutateSetWorkspaceAI(
+          workspace,
+          name,
+          () => {
+            ws.refresh();
+            toast.success(
+              name
+                ? `${workspace} → AI "${name}"`
                 : `${workspace} → inherits default`
             );
           },
@@ -430,6 +499,12 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
         mutateOpenOrphanEditor(
           name,
           () => toast.success(`Opening "${name}" in editor`),
+          (e) => toast.error(`Open failed: ${e.message}`)
+        ),
+      openAI: (name) =>
+        mutateOpenOrphanAI(
+          name,
+          () => toast.success(`Opening "${name}" in AI`),
           (e) => toast.error(`Open failed: ${e.message}`)
         ),
       inspect: (name) => fetchOrphanInspection(name),

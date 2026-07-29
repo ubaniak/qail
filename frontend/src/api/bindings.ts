@@ -22,6 +22,10 @@ export type Bindings = {
   RemoveEditor: (name: string) => Promise<void>;
   SetDefaultEditor: (name: string) => Promise<void>;
   SetWorkspaceEditor: (workspace: string, name: string) => Promise<void>;
+  AddAI: (name: string, command: string) => Promise<void>;
+  RemoveAI: (name: string) => Promise<void>;
+  SetDefaultAI: (name: string) => Promise<void>;
+  SetWorkspaceAI: (workspace: string, name: string) => Promise<void>;
 
   ListRepos: () => Promise<RepoMap>;
   AddRepo: (name: string, url: string) => Promise<void>;
@@ -38,6 +42,7 @@ export type Bindings = {
   RemoveOrphanWorkspaces: (names: string[]) => Promise<void>;
   OrphanPath: (name: string) => Promise<string>;
   OpenOrphanEditor: (name: string) => Promise<void>;
+  OpenOrphanAI: (name: string) => Promise<void>;
   InspectOrphan: (name: string) => Promise<models.OrphanInspectionDTO>;
   RestoreWorkspace: (name: string, repos: string[]) => Promise<void>;
   SetWorkspacePostInstall: (name: string, scripts: string[]) => Promise<void>;
@@ -47,6 +52,10 @@ export type Bindings = {
   OpenCommandWith: (name: string, editor: string) => Promise<models.OpenCommandDTO>;
   OpenEditor: (name: string) => Promise<void>;
   OpenEditorWith: (name: string, editor: string) => Promise<void>;
+  OpenAICommand: (name: string) => Promise<models.OpenAICommandDTO>;
+  OpenAICommandWith: (name: string, ai: string) => Promise<models.OpenAICommandDTO>;
+  OpenAI: (name: string) => Promise<void>;
+  OpenAIWith: (name: string, ai: string) => Promise<void>;
   ExplorePath: (name: string) => Promise<string>;
 
   ListScripts: (scope: Scope) => Promise<string[]>;
@@ -73,6 +82,10 @@ export const api: Bindings = {
   RemoveEditor: (n) => wrap(B.RemoveEditor(n)),
   SetDefaultEditor: (n) => wrap(B.SetDefaultEditor(n)),
   SetWorkspaceEditor: (ws, n) => wrap(B.SetWorkspaceEditor(ws, n)),
+  AddAI: (n, c) => wrap(B.AddAI(n, c)),
+  RemoveAI: (n) => wrap(B.RemoveAI(n)),
+  SetDefaultAI: (n) => wrap(B.SetDefaultAI(n)),
+  SetWorkspaceAI: (ws, n) => wrap(B.SetWorkspaceAI(ws, n)),
 
   ListRepos: () => wrap(B.ListRepos()) as Promise<RepoMap>,
   AddRepo: (name, url) => wrap(B.AddRepo(name, url)),
@@ -89,6 +102,7 @@ export const api: Bindings = {
   RemoveOrphanWorkspaces: (names) => wrap(B.RemoveOrphanWorkspaces(names)),
   OrphanPath: (name) => wrap(B.OrphanPath(name)),
   OpenOrphanEditor: (name) => wrap(B.OpenOrphanEditor(name)),
+  OpenOrphanAI: (name) => wrap(B.OpenOrphanAI(name)),
   InspectOrphan: (name) =>
     wrap(B.InspectOrphan(name)) as Promise<models.OrphanInspectionDTO>,
   RestoreWorkspace: (name, repos) => wrap(B.RestoreWorkspace(name, repos)),
@@ -100,6 +114,11 @@ export const api: Bindings = {
     wrap(B.OpenCommandWith(name, editor)) as Promise<models.OpenCommandDTO>,
   OpenEditor: (name) => wrap(B.OpenEditor(name)),
   OpenEditorWith: (name, editor) => wrap(B.OpenEditorWith(name, editor)),
+  OpenAICommand: (name) => wrap(B.OpenAICommand(name)) as Promise<models.OpenAICommandDTO>,
+  OpenAICommandWith: (name, ai) =>
+    wrap(B.OpenAICommandWith(name, ai)) as Promise<models.OpenAICommandDTO>,
+  OpenAI: (name) => wrap(B.OpenAI(name)),
+  OpenAIWith: (name, ai) => wrap(B.OpenAIWith(name, ai)),
   ExplorePath: (name) => wrap(B.ExplorePath(name)),
 
   ListScripts: (scope) => wrap(B.ListScripts(scope)),

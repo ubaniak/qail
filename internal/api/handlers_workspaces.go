@@ -17,6 +17,7 @@ type workspaceResponse struct {
 	Repos       []string  `json:"repos"`
 	LastUsed    time.Time `json:"lastUsed"`
 	Editor      string    `json:"editor,omitempty"`
+	AI          string    `json:"ai,omitempty"`
 	PostInstall []string  `json:"postInstall,omitempty"`
 }
 
@@ -226,6 +227,29 @@ func (s *Server) handleOpenWorkspaceCmd(w http.ResponseWriter, r *http.Request) 
 	}
 	writeJSON(w, http.StatusOK, map[string]string{
 		"editor":  cmd.Editor,
+		"path":    cmd.Path,
+		"command": cmd.String(),
+	})
+}
+
+// handleOpenWorkspaceAICmd resolves the AI invocation and returns it as
+// JSON, without executing anything — an HTTP server can't safely spawn
+// a terminal window on an arbitrary (possibly remote) host, same
+// reasoning as handleOpenWorkspaceCmd for editors.
+func (s *Server) handleOpenWorkspaceAICmd(w http.ResponseWriter, r *http.Request) {
+	name, err := pathParam(r, "name")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	aiOverride := r.URL.Query().Get("ai")
+	cmd, err := actions.OpenWorkspaceCommandWithAI(s.store, name, aiOverride)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"ai":      cmd.AI,
 		"path":    cmd.Path,
 		"command": cmd.String(),
 	})

@@ -8,9 +8,11 @@ export {
 };
 
 export {
+    AIDTO,
     ConfigDTO,
     DetectedRepoDTO,
     EditorDTO,
+    OpenAICommandDTO,
     OpenCommandDTO,
     OrphanInspectionDTO,
     RepoDTO,

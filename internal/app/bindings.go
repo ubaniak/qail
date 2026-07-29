@@ -62,6 +62,8 @@ type ConfigDTO struct {
 	Root          string                  `json:"root"`
 	Editors       []EditorDTO             `json:"editors"`
 	DefaultEditor string                  `json:"defaultEditor"`
+	AIs           []AIDTO                 `json:"ais"`
+	DefaultAI     string                  `json:"defaultAI"`
 	Workspaces    map[string]WorkspaceDTO `json:"workspaces"`
 }
 
@@ -70,10 +72,16 @@ type EditorDTO struct {
 	Command string `json:"command"`
 }
 
+type AIDTO struct {
+	Name    string `json:"name"`
+	Command string `json:"command"`
+}
+
 type WorkspaceDTO struct {
 	Repos       []string  `json:"repos"`
 	LastUsed    time.Time `json:"lastUsed"`
 	Editor      string    `json:"editor,omitempty"`
+	AI          string    `json:"ai,omitempty"`
 	PostInstall []string  `json:"postInstall,omitempty"`
 }
 
@@ -91,10 +99,16 @@ func (b *Bindings) GetConfig() (ConfigDTO, error) {
 	for i, e := range cfg.Editors {
 		editors[i] = EditorDTO{Name: e.Name, Command: e.Command}
 	}
+	ais := make([]AIDTO, len(cfg.AIs))
+	for i, a := range cfg.AIs {
+		ais[i] = AIDTO{Name: a.Name, Command: a.Command}
+	}
 	out := ConfigDTO{
 		Root:          cfg.Root,
 		Editors:       editors,
 		DefaultEditor: cfg.DefaultEditor,
+		AIs:           ais,
+		DefaultAI:     cfg.DefaultAI,
 		Workspaces:    make(map[string]WorkspaceDTO, len(cfg.Workspaces)),
 	}
 	for name, profile := range cfg.Workspaces {
@@ -102,6 +116,7 @@ func (b *Bindings) GetConfig() (ConfigDTO, error) {
 			Repos:       profile.Repos,
 			LastUsed:    profile.LastUsed,
 			Editor:      profile.Editor,
+			AI:          profile.AI,
 			PostInstall: cfg.PostInstallScripts.Workspace[name],
 		}
 	}
@@ -116,6 +131,13 @@ func (b *Bindings) RemoveEditor(name string) error    { return actions.RemoveEdi
 func (b *Bindings) SetDefaultEditor(name string) error { return actions.SetDefaultEditor(b.store, name) }
 func (b *Bindings) SetWorkspaceEditor(workspace, name string) error {
 	return actions.SetWorkspaceEditor(b.store, workspace, name)
+}
+
+func (b *Bindings) AddAI(name, command string) error { return actions.AddAI(b.store, name, command) }
+func (b *Bindings) RemoveAI(name string) error        { return actions.RemoveAI(b.store, name) }
+func (b *Bindings) SetDefaultAI(name string) error    { return actions.SetDefaultAI(b.store, name) }
+func (b *Bindings) SetWorkspaceAI(workspace, name string) error {
+	return actions.SetWorkspaceAI(b.store, workspace, name)
 }
 
 // --- repos ------------------------------------------------------------------
@@ -157,6 +179,7 @@ func (b *Bindings) ListWorkspaces() (map[string]WorkspaceDTO, error) {
 			Repos:       profile.Repos,
 			LastUsed:    profile.LastUsed,
 			Editor:      profile.Editor,
+			AI:          profile.AI,
 			PostInstall: postInstall[name],
 		}
 	}
@@ -221,6 +244,13 @@ func (b *Bindings) OrphanPath(name string) (string, error) {
 // Mirrors OpenEditor for unregistered dirs surfaced by Settings → Cleanup.
 func (b *Bindings) OpenOrphanEditor(name string) error {
 	return actions.LaunchEditorForOrphan(b.store, name, "")
+}
+
+// OpenOrphanAI spawns the default AI tool against an orphan directory in
+// a new terminal window. Mirrors OpenAI for unregistered dirs surfaced
+// by Settings → Cleanup.
+func (b *Bindings) OpenOrphanAI(name string) error {
+	return actions.LaunchAIForOrphan(b.store, name, "")
 }
 
 // DetectedRepoDTO mirrors workspace.DetectedRepo for JSON. Match is the
@@ -318,6 +348,39 @@ func (b *Bindings) OpenEditor(name string) error {
 // OpenEditorWith spawns a specific editor (by name) against the workspace.
 func (b *Bindings) OpenEditorWith(name, editor string) error {
 	return actions.LaunchEditorWith(b.store, name, editor)
+}
+
+// OpenAICommandDTO is returned to JS so the UI can display + copy the AI
+// tool invocation — the app cannot exec a TTY program in place; it must
+// spawn a terminal (see OpenAI/OpenAIWith).
+type OpenAICommandDTO struct {
+	AI      string `json:"ai"`
+	Path    string `json:"path"`
+	Command string `json:"command"`
+}
+
+func (b *Bindings) OpenAICommand(name string) (OpenAICommandDTO, error) {
+	return b.OpenAICommandWith(name, "")
+}
+
+func (b *Bindings) OpenAICommandWith(name, ai string) (OpenAICommandDTO, error) {
+	cmd, err := actions.OpenWorkspaceCommandWithAI(b.store, name, ai)
+	if err != nil {
+		return OpenAICommandDTO{}, err
+	}
+	return OpenAICommandDTO{AI: cmd.AI, Path: cmd.Path, Command: cmd.String()}, nil
+}
+
+// OpenAI spawns the configured AI tool against the workspace in a new
+// terminal window and returns immediately. Use OpenAICommand if the
+// caller wants the invocation as data instead.
+func (b *Bindings) OpenAI(name string) error {
+	return actions.LaunchAI(b.store, name)
+}
+
+// OpenAIWith spawns a specific AI tool (by name) against the workspace.
+func (b *Bindings) OpenAIWith(name, ai string) error {
+	return actions.LaunchAIWith(b.store, name, ai)
 }
 
 // ExplorePath returns the workspace path so JS can open it via

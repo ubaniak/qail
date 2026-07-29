@@ -88,6 +88,51 @@ var (
 			forms.DisplayEditors(editors, def)
 		},
 	}
+	configAiCmd = &cobra.Command{
+		Use:   "ai",
+		Short: "Manage AI tools",
+	}
+	configAiAddCmd = &cobra.Command{
+		Use:   "add <name> <command>",
+		Short: "Register an AI tool (e.g. add claude claude)",
+		Args:  cobra.ExactArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := actions.AddAI(mustStore(), args[0], args[1]); err != nil {
+				log.Fatalln(err)
+			}
+		},
+	}
+	configAiRmCmd = &cobra.Command{
+		Use:     "remove <name>",
+		Aliases: []string{"rm"},
+		Args:    cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := actions.RemoveAI(mustStore(), args[0]); err != nil {
+				log.Fatalln(err)
+			}
+		},
+	}
+	configAiDefaultCmd = &cobra.Command{
+		Use:   "default <name>",
+		Short: "Set the global default AI tool",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := actions.SetDefaultAI(mustStore(), args[0]); err != nil {
+				log.Fatalln(err)
+			}
+		},
+	}
+	configAiLsCmd = &cobra.Command{
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Run: func(cmd *cobra.Command, args []string) {
+			ais, def, err := actions.ListAI(mustStore())
+			if err != nil {
+				log.Fatalln(err)
+			}
+			forms.DisplayAIs(ais, def)
+		},
+	}
 	configRootCmd = &cobra.Command{
 		Use:  "root",
 		Args: cobra.ExactArgs(1),
@@ -105,5 +150,6 @@ var (
 
 func init() {
 	configEditorCmd.AddCommand(configEditorAddCmd, configEditorRmCmd, configEditorDefaultCmd, configEditorLsCmd)
-	configCmd.AddCommand(configRootCmd, configEditorCmd, configLsCmd, configConvertCmd)
+	configAiCmd.AddCommand(configAiAddCmd, configAiRmCmd, configAiDefaultCmd, configAiLsCmd)
+	configCmd.AddCommand(configRootCmd, configEditorCmd, configAiCmd, configLsCmd, configConvertCmd)
 }

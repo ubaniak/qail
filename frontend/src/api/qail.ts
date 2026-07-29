@@ -91,6 +91,34 @@ export const mutateSetWorkspaceEditor = (
     onError,
   });
 
+// mutateOpenWorkspaceAI spawns a new terminal running the AI tool at the
+// workspace path. Passing an ai name overrides the workspace/global
+// default for this launch only.
+export const mutateOpenWorkspaceAI = (
+  name: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void,
+  ai?: string
+): void =>
+  mutateService({
+    call: async () =>
+      ai ? requireApi().OpenAIWith(name, ai) : requireApi().OpenAI(name),
+    onSuccess,
+    onError,
+  });
+
+export const mutateSetWorkspaceAI = (
+  workspace: string,
+  ai: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().SetWorkspaceAI(workspace, ai),
+    onSuccess,
+    onError,
+  });
+
 export const mutateMuxWorkspace = (
   name: string,
   onSuccess: (cmd: string) => void,
@@ -182,6 +210,17 @@ export const mutateOpenOrphanEditor = (
     onError,
   });
 
+export const mutateOpenOrphanAI = (
+  name: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().OpenOrphanAI(name),
+    onSuccess,
+    onError,
+  });
+
 export const fetchOrphanInspection = async (
   name: string
 ): Promise<models.OrphanInspectionDTO> => requireApi().InspectOrphan(name);
@@ -209,10 +248,12 @@ export const useListSettings = (): CallServiceResult<Settings> =>
           root: cfg.root,
           editors: cfg.editors ?? [],
           defaultEditor: cfg.defaultEditor,
+          ais: cfg.ais ?? [],
+          defaultAI: cfg.defaultAI,
         };
       },
     },
-    { root: "", editors: [], defaultEditor: "" }
+    { root: "", editors: [], defaultEditor: "", ais: [], defaultAI: "" }
   );
 
 export const mutateSaveRoot = (
@@ -256,6 +297,40 @@ export const mutateSetDefaultEditor = (
 ): void =>
   mutateService({
     call: async () => requireApi().SetDefaultEditor(name),
+    onSuccess,
+    onError,
+  });
+
+export const mutateAddAI = (
+  name: string,
+  command: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().AddAI(name, command),
+    onSuccess,
+    onError,
+  });
+
+export const mutateRemoveAI = (
+  name: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().RemoveAI(name),
+    onSuccess,
+    onError,
+  });
+
+export const mutateSetDefaultAI = (
+  name: string,
+  onSuccess: () => void,
+  onError?: (e: Error) => void
+): void =>
+  mutateService({
+    call: async () => requireApi().SetDefaultAI(name),
     onSuccess,
     onError,
   });

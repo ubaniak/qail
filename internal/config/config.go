@@ -22,6 +22,9 @@ type WorkspaceProfile struct {
 	// Editor names the workspace's preferred editor (matches Editor.Name).
 	// Empty = inherit Config.DefaultEditor.
 	Editor string
+	// AI names the workspace's preferred AI tool (matches AI.Name).
+	// Empty = inherit Config.DefaultAI.
+	AI string
 }
 
 func NewWorkspaceProfile(repos []string, lastUsed time.Time) WorkspaceProfile {
@@ -38,6 +41,13 @@ type Editor struct {
 	Command string
 }
 
+// AI is a named AI-tool binding. Name is the user-chosen label and
+// identity key; Command is the executable name (e.g. "claude").
+type AI struct {
+	Name    string
+	Command string
+}
+
 type PostInstallScripts struct {
 	Repo      map[string][]string
 	Workspace map[string][]string
@@ -47,6 +57,8 @@ type Config struct {
 	Root               string
 	Editors            []Editor
 	DefaultEditor      string // refs Editor.Name; "" = none
+	AIs                []AI
+	DefaultAI          string // refs AI.Name; "" = none
 	Workspaces         Workspace
 	Repos              map[string]string
 	PostInstallScripts PostInstallScripts

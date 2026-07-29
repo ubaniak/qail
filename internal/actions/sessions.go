@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/ubaniak/qail/internal/config"
@@ -261,10 +262,196 @@ func resolveWorkspace(s config.Store, name string) (config.Config, config.Worksp
 // touchAndWrite bumps LastUsed for name and persists the snapshot. Splits
 // out so resolveWorkspace can run side-effect-free validations first.
 // Acquires storeMu so a concurrent action's Read+Write doesn't lose the
-// LastUsed bump.
+// LastUsed bump. Preserves the rest of profile (Editor/AI overrides) —
+// previously this reconstructed a bare profile via NewWorkspaceProfile,
+// silently dropping those overrides on every touch.
 func touchAndWrite(s config.Store, cfg config.Config, name string, profile config.WorkspaceProfile) error {
 	storeMu.Lock()
 	defer storeMu.Unlock()
-	cfg.Workspaces[name] = config.NewWorkspaceProfile(profile.Repos, time.Now().UTC())
+	profile.LastUsed = time.Now().UTC()
+	cfg.Workspaces[name] = profile
 	return s.Write(cfg)
+}
+
+// AICommand bundles the AI tool name and the workspace path. Unlike
+// EditorCommand, Path is the working directory the AI process runs in,
+// not a positional argument — TTY tools like Claude Code operate on
+// cwd, they don't take a path arg the way GUI editors do.
+type AICommand struct {
+	AI   string
+	Path string
+}
+
+// String renders the AI command for display: `cd <path> && <ai>`.
+func (a AICommand) String() string {
+	return fmt.Sprintf("cd %s && %s", a.Path, a.AI)
+}
+
+// OpenWorkspaceCommandAI resolves the workspace, picks the AI tool via the
+// default-resolution chain (workspace override > global default), bumps
+// LastUsed, and returns the AI invocation as data. Pure — no subprocess.
+func OpenWorkspaceCommandAI(s config.Store, name string) (AICommand, error) {
+	return OpenWorkspaceCommandWithAI(s, name, "")
+}
+
+// OpenWorkspaceCommandWithAI is the explicit-override variant. aiName
+// takes precedence over the workspace override and the global default.
+func OpenWorkspaceCommandWithAI(s config.Store, name, aiName string) (AICommand, error) {
+	cfg, profile, wsPath, err := resolveWorkspace(s, name)
+	if err != nil {
+		return AICommand{}, err
+	}
+	ai, err := resolveAI(cfg, profile, aiName)
+	if err != nil {
+		return AICommand{}, err
+	}
+	if err := touchAndWrite(s, cfg, name, profile); err != nil {
+		return AICommand{}, err
+	}
+	return AICommand{AI: ai.Command, Path: wsPath}, nil
+}
+
+// resolveAI picks an AI tool from cfg using the precedence:
+// explicit > workspace.AI > cfg.DefaultAI.
+func resolveAI(cfg config.Config, profile config.WorkspaceProfile, explicit string) (config.AI, error) {
+	candidates := []string{explicit, profile.AI, cfg.DefaultAI}
+	for _, name := range candidates {
+		if name == "" {
+			continue
+		}
+		ai, ok := findAI(cfg, name)
+		if !ok {
+			return config.AI{}, fmt.Errorf("ai %q not found", name)
+		}
+		return ai, nil
+	}
+	return config.AI{}, errors.New("no ai selected")
+}
+
+// OpenWorkspaceAI launches the configured AI tool against the workspace
+// directory after touching LastUsed. Inherits stdio so the AI's TTY UI
+// takes over the terminal. Only safe to call from a TTY caller (CLI).
+func OpenWorkspaceAI(ctx context.Context, s config.Store, r Runner, name string) error {
+	cmd, err := OpenWorkspaceCommandAI(s, name)
+	if err != nil {
+		return err
+	}
+	_, err = r.Run(ctx, runner.Command{
+		Name:   cmd.AI,
+		Dir:    cmd.Path,
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	})
+	return err
+}
+
+// OpenWorkspaceWithAI launches the configured AI tool against the
+// workspace with optional override. See OpenWorkspaceAI for stdio
+// semantics.
+func OpenWorkspaceWithAI(ctx context.Context, s config.Store, r Runner, name, aiName string) error {
+	cmd, err := OpenWorkspaceCommandWithAI(s, name, aiName)
+	if err != nil {
+		return err
+	}
+	_, err = r.Run(ctx, runner.Command{
+		Name:   cmd.AI,
+		Dir:    cmd.Path,
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	})
+	return err
+}
+
+// LaunchAI spawns the configured AI tool against the workspace directory
+// in a new terminal window and returns immediately. Intended for the
+// Wails GUI where there is no TTY to hand over.
+func LaunchAI(s config.Store, name string) error {
+	return LaunchAIWith(s, name, "")
+}
+
+// LaunchAIWith is the explicit-override variant of LaunchAI.
+func LaunchAIWith(s config.Store, name, aiName string) error {
+	cmd, err := OpenWorkspaceCommandWithAI(s, name, aiName)
+	if err != nil {
+		return err
+	}
+	return spawnTerminal(cmd.AI, cmd.Path)
+}
+
+// LaunchAIForOrphan spawns the configured AI tool against an orphan
+// directory under cfg.Root, in a new terminal window. Picks the AI tool
+// by precedence: explicit aiName > global default (orphan dirs aren't
+// registered so there's no workspace override).
+func LaunchAIForOrphan(s config.Store, name, aiName string) error {
+	wsPath, err := OrphanPath(s, name)
+	if err != nil {
+		return err
+	}
+	cfg, err := s.Read()
+	if err != nil {
+		return err
+	}
+	ai, err := resolveAI(cfg, config.WorkspaceProfile{}, aiName)
+	if err != nil {
+		return err
+	}
+	return spawnTerminal(ai.Command, wsPath)
+}
+
+// DefaultAICommand returns the command string for the global default AI
+// tool, or "" if none is set.
+func DefaultAICommand(s config.Store) (string, error) {
+	cfg, err := s.Read()
+	if err != nil {
+		return "", err
+	}
+	if cfg.DefaultAI == "" {
+		return "", nil
+	}
+	ai, ok := findAI(cfg, cfg.DefaultAI)
+	if !ok {
+		return "", nil
+	}
+	return ai.Command, nil
+}
+
+// spawnTerminal opens a new macOS Terminal.app window that cds into path
+// and runs command, then self-deletes its throwaway script. A .command
+// extension (not .sh) is required — that's what makes Terminal.app run
+// the file as a script when opened via `open`, rather than just
+// displaying it. Self-delete is the script's own last line rather than a
+// Go-side os.Remove: `open -a Terminal` returns as soon as macOS has been
+// asked to launch the app, not once Terminal has actually read the file,
+// so removing it from the Go side would race a cold Terminal launch.
+func spawnTerminal(command, path string) error {
+	f, err := os.CreateTemp("", "qail-ai-*.command")
+	if err != nil {
+		return err
+	}
+	name := f.Name()
+	script := fmt.Sprintf("#!/bin/sh\ncd %s || exit 1\n%s\nrm -f -- %s\n",
+		shellQuote(path), command, shellQuote(name))
+	if _, err := f.WriteString(script); err != nil {
+		f.Close()
+		os.Remove(name)
+		return err
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(name)
+		return err
+	}
+	if err := os.Chmod(name, 0700); err != nil {
+		os.Remove(name)
+		return err
+	}
+	return exec.Command("open", "-a", "Terminal", name).Start()
+}
+
+// shellQuote single-quotes s, escaping embedded quotes via the standard
+// POSIX '\'' trick, so a path/filename token can't break script
+// structure regardless of spaces or shell metacharacters it contains.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

@@ -1,6 +1,6 @@
 // Edit forms for Settings: root path and editor registration.
 
-import { CodeOutlined, FolderOpenOutlined } from "@ant-design/icons";
+import { CodeOutlined, FolderOpenOutlined, RobotOutlined } from "@ant-design/icons";
 import { Dialogs } from "@wailsio/runtime";
 import { Input } from "antd";
 import { useState } from "react";
@@ -139,6 +139,71 @@ export const AddEditor = ({ onClose }: AddEditorProps) => {
         <div className="text-[11px] text-zinc-500 mt-1">
           Examples: <code>code</code>, <code>cursor</code>, <code>idea</code>,
           full paths OK.
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export type AddAIProps = {
+  onClose: () => void;
+};
+
+export const AddAI = ({ onClose }: AddAIProps) => {
+  const { ais } = useQailService();
+  const [name, setName] = useState("");
+  const [command, setCommand] = useState("");
+
+  const valid = name.trim() !== "" && command.trim() !== "";
+
+  return (
+    <div className="flex flex-col h-full p-3 gap-3">
+      <div className="flex justify-end gap-2">
+        <QButton variant="cancel" onClick={onClose}>
+          Cancel
+        </QButton>
+        <QButton
+          variant="accent"
+          disabled={!valid}
+          onClick={() => {
+            ais.add(name.trim(), command.trim());
+            onClose();
+          }}
+        >
+          Add
+        </QButton>
+      </div>
+
+      <div>
+        <div className="text-zinc-100 text-base font-semibold">Add AI</div>
+        <div className="text-zinc-400 text-xs">
+          Register an AI tool binding (label + executable).
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs text-zinc-400">Name</label>
+        <Input
+          placeholder="claude"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+        />
+        <div className="text-[11px] text-zinc-500 mt-1">
+          Label you'll pick from the workspace menu.
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs text-zinc-400">Command</label>
+        <Input
+          prefix={<RobotOutlined className="text-zinc-500" />}
+          placeholder="claude"
+          value={command}
+          onChange={(e) => setCommand(e.target.value)}
+        />
+        <div className="text-[11px] text-zinc-500 mt-1">
+          Runs in a new terminal window at the workspace path.
         </div>
       </div>
     </div>

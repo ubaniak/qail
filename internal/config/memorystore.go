@@ -53,9 +53,13 @@ func cloneConfig(cfg Config) Config {
 	out := Config{
 		Root:          cfg.Root,
 		DefaultEditor: cfg.DefaultEditor,
+		DefaultAI:     cfg.DefaultAI,
 	}
 	if cfg.Editors != nil {
 		out.Editors = append([]Editor(nil), cfg.Editors...)
+	}
+	if cfg.AIs != nil {
+		out.AIs = append([]AI(nil), cfg.AIs...)
 	}
 	if cfg.Repos != nil {
 		out.Repos = make(map[string]string, len(cfg.Repos))
@@ -71,6 +75,7 @@ func cloneConfig(cfg Config) Config {
 				Repos:    repos,
 				LastUsed: v.LastUsed,
 				Editor:   v.Editor,
+				AI:       v.AI,
 			}
 		}
 	}
