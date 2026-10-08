@@ -1,14 +1,12 @@
-// Progress provider — subscribes to the Wails v3 custom events fired
-// by internal/app/bindings.go (workspace:progress / :done / :error) and
+// Progress provider — subscribes to the progress events fired by
+// internal/app/bindings.go (workspace:progress / :done / :error) and
 // exposes:
 //   - start(title)           open the drawer in "running" state
 //   - clear()                close + reset
 //   - the current run's log lines + status
 //
 // The drawer itself (ProgressDrawer) consumes the same context and
-// renders the log with auto-scroll. v3 hands the listener a
-// `WailsEvent` object with `name` + `data`; we pull `data` out and
-// keep the rest of the provider identical to the v2 version.
+// renders the log with auto-scroll.
 
 import {
   createContext,
@@ -19,7 +17,13 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import { Events } from "@wailsio/runtime";
+import { onEvent } from "../desktop";
+
+// The Go side colours its CLI output; the drawer renders plain text.
+// eslint-disable-next-line no-control-regex
+const ANSI = /\x1b\[[0-9;]*m/g;
+const plain = (data: unknown) =>
+  (typeof data === "string" ? data : String(data ?? "")).replace(ANSI, "");
 
 export type ProgressStatus = "idle" | "running" | "done" | "error";
 
@@ -35,8 +39,6 @@ type Ctx = {
 
 const ProgressContext = createContext<Ctx | null>(null);
 
-type WailsEvent = { name: string; data: unknown };
-
 export const ProgressProvider = ({ children }: { children: ReactNode }) => {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -49,16 +51,16 @@ export const ProgressProvider = ({ children }: { children: ReactNode }) => {
   linesRef.current = lines;
 
   useEffect(() => {
-    const offProgress = Events.On("workspace:progress", (e: WailsEvent) => {
-      const line = typeof e?.data === "string" ? e.data : String(e?.data ?? "");
+    const offProgress = onEvent("workspace:progress", (data) => {
+      const line = plain(data);
       setLines((prev) => [...prev, line]);
     });
-    const offDone = Events.On("workspace:done", () => {
+    const offDone = onEvent("workspace:done", () => {
       setStatus("done");
     });
-    const offError = Events.On("workspace:error", (e: WailsEvent) => {
+    const offError = onEvent("workspace:error", (data) => {
       setStatus("error");
-      const msg = typeof e?.data === "string" ? e.data : String(e?.data ?? "");
+      const msg = plain(data);
       setErrorMsg(msg);
     });
     return () => {

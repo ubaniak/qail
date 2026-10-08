@@ -1,7 +1,6 @@
 // DTOs mirror internal/app/bindings.go. Names match the JSON tags so a
-// raw fetch from the bound methods deserializes straight into these.
-// When the Go side grows, regenerate via `wails generate module` and
-// replace by hand.
+// result from the bound methods deserializes straight into these.
+// When the Go side grows, update these by hand.
 
 export namespace models {
   export interface WorkspaceDTO {

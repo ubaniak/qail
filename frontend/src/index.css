@@ -32,7 +32,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Wails drag region marker. The frameless window can be moved by
+/* Window drag region marker. The frameless window can be moved by
    dragging anywhere with this attribute; interactive children opt out
    below so clicks aren't swallowed. */
 [data-drag] {

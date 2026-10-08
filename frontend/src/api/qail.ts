@@ -1,5 +1,5 @@
-// Typed wrappers around Wails Bindings for use with callService /
-// mutateService. Maps qail_ui's QailService.* naming to qail Wails v2
+// Typed wrappers around the Go Bindings for use with callService /
+// mutateService. Maps qail_ui's QailService.* naming to qail's
 // binding names so the rest of the UI stays close to the reference
 // implementation.
 
@@ -365,7 +365,7 @@ export const mutateRemoveTmux = (
 
 // ---------- scripts ---------------------------------------------------------
 
-// Scripts are scoped: workspace or repo. The Wails binding accepts the
+// Scripts are scoped: workspace or repo. The Go binding accepts the
 // scope as a string so the wrapper passes through directly. callService
 // memoises by JSON-stringifying its second arg, so the scope flows in as
 // part of the dependency key and the hook re-fetches on toggle.

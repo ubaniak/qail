@@ -1,12 +1,12 @@
 // Fixed top bar — Q logo left, Settings icon right. The whole bar is
-// the Wails drag region via data-drag (-webkit-app-region: drag in
+// the window drag region via data-drag (-webkit-app-region: drag in
 // index.css). Interactive children inherit no-drag via the override.
 //
 // Frosted-glass background matches qail_ui; on macOS frameless the
 // blur shows the desktop behind in a pleasing way.
 
 import { CloseOutlined, SettingOutlined } from "@ant-design/icons";
-import { Window } from "@wailsio/runtime";
+import { hideWindow } from "../../desktop";
 import { Button } from "antd";
 
 export type TopBarProps = {
@@ -50,7 +50,7 @@ export default function TopBar({ onSettingsClick, settingsActive }: TopBarProps)
           shape="circle"
           size="small"
           icon={<CloseOutlined />}
-          onClick={() => Window.Close()}
+          onClick={() => void hideWindow()}
           aria-label="Close"
         />
       </div>

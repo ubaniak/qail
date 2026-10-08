@@ -2,7 +2,7 @@
 //   ConfigProvider sets Antd's dark algorithm + brand tokens
 //   App (antd) supplies the message/notification/modal context used by
 //     useNotification() + Popconfirm/Modal hooks
-//   ProgressProvider wires Wails workspace:* events to the log drawer
+//   ProgressProvider wires backend workspace:* events to the log drawer
 //   QailServiceProvider exposes the read+write surface to every page
 //
 // The ordering matters: notification needs <App>; qailservice needs

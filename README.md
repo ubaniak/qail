@@ -32,7 +32,7 @@ When working on microservices or any feature touching multiple repos, you want t
 |---|---|---|
 | **CLI** | `qail <subcommand>` | Default; scripts, terminal-first workflows |
 | **HTTP API** | `qail serve` | Drive qail from a web UI, scripts, or another machine |
-| **Desktop app** | `qail app` (or `open qail.app`) | Frameless menubar window; shares state with CLI/server |
+| **Desktop app** | `make app`, or the installed qail app | Electron menubar window; shares state with CLI/server |
 
 All three call into the same `internal/actions` package — changes made in one are immediately visible to the others (single SQLite DB at `~/.qail/qail.db`).
 
@@ -43,12 +43,8 @@ All three call into the same `internal/actions` package — changes made in one 
 | Tool | Needed for |
 |---|---|
 | Go ≥ 1.24 | All builds |
-| Node ≥ 22 + npm | Desktop app + installers (Vite frontend) |
-| `wails` CLI | Desktop app (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`) |
-| Xcode CLI tools | macOS app + DMG |
-| `mingw-w64` or build on Windows | Windows installer |
-| WebKitGTK + GTK dev libs | Linux app |
-| `nfpm` + `appimagetool` | Linux installers |
+| Node ≥ 22 + npm | Desktop app + installers (Vite + Electron) |
+| C toolchain (Xcode CLI tools, gcc, or MinGW) | cgo SQLite driver |
 
 ### CLI
 
@@ -78,35 +74,27 @@ See [HTTP API](#http-api) for endpoints.
 
 ### Desktop app
 
-Runs `vite build` then `wails build` to produce a single bundle with the frontend embedded:
+The desktop app is an Electron shell (`frontend/electron/`) around the React UI. It spawns the `qail` binary as `qail desktop-backend` and talks to it over stdin/stdout, so there's no port to open and the Go code is the same binary as the CLI.
 
 ```sh
-make app                    # → build/bin/qail.app (macOS)
-                            # → build/bin/qail.exe (Windows)
-                            # → build/bin/qail (Linux)
+make app                    # build bin/qail + frontend/dist, launch Electron
+make app-dev                # Vite HMR inside Electron (run `make build` after Go changes)
 ```
 
-Dev loop with hot reload:
-
-```sh
-make app-dev                # wails dev — Vite HMR + Go rebuild on save
-```
+The window lives under a tray icon: left-click toggles it, right-click opens the menu (on Linux the menu is the only entry point), and `Ctrl+Alt+Q` toggles it from anywhere. Set `QAIL_BIN` to run Electron against a different `qail` binary.
 
 ### Installers
 
-Per-OS native installers. Each script builds for its target then wraps it in the platform's standard installer format.
+electron-builder packages the frontend plus `bin/qail` (shipped as `resources/bin/qail`). The Go binary links SQLite via cgo, so build each installer on its target OS.
 
 ```sh
-make installer              # auto-detects host OS
-make installer-mac          # → qail-<ver>-<arch>.dmg
-make installer-windows      # → qail-<ver>-windows-amd64-installer.exe
-make installer-linux-deb    # → qail_<ver>_amd64.deb
-make installer-linux-appimage # → qail-<ver>-x86_64.AppImage
+make installer              # native installer(s) for the host OS
+make installer-mac          # → .dmg
+make installer-windows      # → NSIS .exe
+make installer-linux        # → .deb + .AppImage
 ```
 
-Output: `build/installers/`. Version comes from `git describe` (override with `VERSION=v1.2.3`).
-
-CI builds all five on tag push — see [installers.md](installers.md) and [.github/workflows/release.yml](.github/workflows/release.yml).
+Output: `build/installers/`. Config lives under `"build"` in `frontend/package.json`.
 
 ## Run
 
@@ -116,8 +104,8 @@ CI builds all five on tag push — see [installers.md](installers.md) and [.gith
 | CLI commands | `qail <subcommand>` (see [Commands](#commands)) |
 | HTTP server (loopback) | `qail serve` |
 | HTTP server (custom port) | `qail serve --addr 127.0.0.1:9000` |
-| Desktop app | `open build/bin/qail.app` (macOS) — or installed via DMG/AppImage/etc. |
-| Desktop app (from terminal, see logs) | `build/bin/qail.app/Contents/MacOS/qail app` |
+| Desktop app | `make app` — or installed via DMG/AppImage/etc. |
+| Desktop app (from source, see logs) | `make app` prints Electron and backend logs to the terminal |
 | Sandbox install | `QAIL_HOME=/tmp/qail qail <cmd>` |
 
 ## Quick start
@@ -247,12 +235,6 @@ qail serve                 # default 127.0.0.1:8765
 qail serve --addr :9000    # custom bind
 ```
 
-### App
-
-```sh
-qail app                   # launch desktop window (requires `make app` build)
-```
-
 ## HTTP API
 
 `qail serve` exposes the same actions as JSON+SSE. Long-running ops (workspace create/edit/clone) stream progress as Server-Sent Events; everything else is plain JSON.
@@ -321,13 +303,13 @@ Everything lives under `~/.qail/` (override with `QAIL_HOME`):
               └─────────────────┘ ├─►  internal/actions/  ──► internal/{workspace,installer,git,scripts,tmux}
                                   │   (atomic ops, mutex)        │
               ┌─────────────────┐ │                              ▼
-   menubar ──►│ cmd/app.go      │─┘    internal/config/Store ──► ~/.qail/qail.db
-              │ internal/app/   │                                (SQLite)
-              │ (Wails bindings)│
+   menubar ──►│ cmd/desktop.go  │─┘    internal/config/Store ──► ~/.qail/qail.db
+  (Electron,  │ internal/app/   │                                (SQLite)
+   stdio RPC) │ (Bindings)      │
               └─────────────────┘
 ```
 
-Three frontends, one engine. ADRs in [docs/adr/](docs/adr/) record the architecture decisions; [docs/adr/0016-http-api-layer.md](docs/adr/0016-http-api-layer.md) covers the HTTP layer refactor.
+Three frontends, one engine. ADRs in [docs/adr/](docs/adr/) record the architecture decisions; [docs/adr/0016-http-api-layer.md](docs/adr/0016-http-api-layer.md) covers the HTTP layer refactor and [docs/adr/0017-electron-desktop-app.md](docs/adr/0017-electron-desktop-app.md) the move from Wails to Electron.
 
 ## Development
 
@@ -345,6 +327,5 @@ go build -o bin/qail .
 Companion docs:
 
 - [app-status.md](app-status.md) — desktop app build state + deferred tray work
-- [installers.md](installers.md) — installer scripts + codesigning/notarization steps
 - [frontend.md](frontend.md) — web/desktop UI design
 - [docs/adr/](docs/adr/) — architecture decisions

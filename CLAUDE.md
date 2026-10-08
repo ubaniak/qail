@@ -30,6 +30,8 @@ Go CLI app using **Cobra** for commands and **GORM + SQLite** for persistence (`
 - `internal/scripts/` — Manages bash scripts stored in `~/.qail/scripts/`.
 - `internal/clip/` — Clipboard helper for `cd` (copies path).
 - `internal/color/` — Lipgloss color helpers.
+- `internal/app/` — `Bindings` (the desktop UI's method set) plus `rpc.go`, the stdio JSON-lines server behind the hidden `qail desktop-backend` command.
+- `frontend/` — React/Vite UI packaged as an Electron menubar app (`frontend/electron/`). Electron spawns `qail desktop-backend` and calls `Bindings` methods by name. `make app` runs it; `make installer` packages it.
 
 ### Data Flow Pattern
 

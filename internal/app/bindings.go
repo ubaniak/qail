@@ -1,12 +1,11 @@
-// Package app is the Wails-facing layer of qail: the QailService bound
-// to the JS runtime via v3 generated bindings, plus systray wiring lives
-// in cmd/app.go. Every method here funnels into internal/actions, so the
-// desktop app, the HTTP server, and the CLI all share the same business
-// logic.
+// Package app is the desktop-facing layer of qail: the Bindings method
+// set the Electron UI calls over the stdio RPC bridge in rpc.go. Every
+// method here funnels into internal/actions, so the desktop app, the
+// HTTP server, and the CLI all share the same business logic.
 //
-// Progress streaming uses Wails v3 custom events ("workspace:progress",
-// "workspace:done", "workspace:error"). The frontend subscribes via
-// `@wailsio/runtime` Events.On.
+// Progress streaming uses named events ("workspace:progress",
+// "workspace:done", "workspace:error") pushed through an Emitter. The
+// Electron main process forwards them to the renderer.
 package app
 
 import (
@@ -16,43 +15,30 @@ import (
 	"io"
 	"time"
 
-	"github.com/wailsapp/wails/v3/pkg/application"
-
 	"github.com/ubaniak/qail/internal/actions"
 	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/scripts"
 	"github.com/ubaniak/qail/internal/tmux"
 )
 
-// Bindings is the v3 service exposed to the frontend. wails3 generate
-// bindings reads its method set and writes typed wrappers into
-// frontend/bindings/. The struct holds the config store and the App so
-// methods can fire custom events from any goroutine.
+// Emitter pushes a named event to the UI. Safe to call from any
+// goroutine; the RPC server serialises writes.
+type Emitter func(name string, data any)
+
+// Bindings is the method set exposed to the frontend. Every exported
+// method is callable by name over the RPC bridge (see rpc.go), so the
+// method set IS the API: keep frontend/src/api/bindings.ts in sync.
 type Bindings struct {
-	store config.Store
-	app   *application.App
-	ctx   context.Context
+	store  config.Store
+	emitFn Emitter
+	ctx    context.Context
 }
 
-// New constructs a Bindings. The App is wired here (rather than via
-// ServiceStartup) so the ctor stays callable from cmd/app.go before
-// `app.Run()` blocks.
-func New(s config.Store, app *application.App) *Bindings {
-	return &Bindings{store: s, app: app, ctx: context.Background()}
+// New constructs a Bindings. ctx bounds every long-running call (it is
+// cancelled when the backend shuts down); emit may be nil in tests.
+func New(ctx context.Context, s config.Store, emit Emitter) *Bindings {
+	return &Bindings{store: s, emitFn: emit, ctx: ctx}
 }
-
-// ServiceStartup is the v3 lifecycle hook — called once when the service
-// registers, before the webview loads. We just stash ctx so handlers can
-// honor cancellation if needed.
-func (b *Bindings) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
-	b.ctx = ctx
-	return nil
-}
-
-// ServiceName satisfies the optional ServiceName interface so the
-// generated TS bindings live in a stable namespace regardless of pkg
-// path. wails3 uses it as the namespace for the generated file.
-func (*Bindings) ServiceName() string { return "Bindings" }
 
 // --- config -----------------------------------------------------------------
 
@@ -127,15 +113,17 @@ func (b *Bindings) SetRoot(value string) error { return actions.SetRoot(b.store,
 func (b *Bindings) AddEditor(name, command string) error {
 	return actions.AddEditor(b.store, name, command)
 }
-func (b *Bindings) RemoveEditor(name string) error    { return actions.RemoveEditor(b.store, name) }
-func (b *Bindings) SetDefaultEditor(name string) error { return actions.SetDefaultEditor(b.store, name) }
+func (b *Bindings) RemoveEditor(name string) error { return actions.RemoveEditor(b.store, name) }
+func (b *Bindings) SetDefaultEditor(name string) error {
+	return actions.SetDefaultEditor(b.store, name)
+}
 func (b *Bindings) SetWorkspaceEditor(workspace, name string) error {
 	return actions.SetWorkspaceEditor(b.store, workspace, name)
 }
 
 func (b *Bindings) AddAI(name, command string) error { return actions.AddAI(b.store, name, command) }
-func (b *Bindings) RemoveAI(name string) error        { return actions.RemoveAI(b.store, name) }
-func (b *Bindings) SetDefaultAI(name string) error    { return actions.SetDefaultAI(b.store, name) }
+func (b *Bindings) RemoveAI(name string) error       { return actions.RemoveAI(b.store, name) }
+func (b *Bindings) SetDefaultAI(name string) error   { return actions.SetDefaultAI(b.store, name) }
 func (b *Bindings) SetWorkspaceAI(workspace, name string) error {
 	return actions.SetWorkspaceAI(b.store, workspace, name)
 }
@@ -383,8 +371,8 @@ func (b *Bindings) OpenAIWith(name, ai string) error {
 	return actions.LaunchAIWith(b.store, name, ai)
 }
 
-// ExplorePath returns the workspace path so JS can open it via
-// app.Browser.OpenURL("file://"+path) in v3.
+// ExplorePath returns the workspace path so JS can reveal it in the
+// OS file manager.
 func (b *Bindings) ExplorePath(name string) (string, error) {
 	return actions.ExploreWorkspacePath(b.store, name)
 }
@@ -482,7 +470,7 @@ func (b *Bindings) RemoveMuxSession(name string) error {
 // --- helpers ----------------------------------------------------------------
 
 // streamWorkspace runs fn against a pipe whose lines are emitted as
-// "workspace:progress" v3 custom events. Final outcome events:
+// "workspace:progress" events. Final outcome events:
 // "workspace:done" or "workspace:error". The scanner goroutine drains
 // the pipe so workspace progress can never block on a full buffer.
 func (b *Bindings) streamWorkspace(fn func(io.Writer) error) error {
@@ -509,12 +497,10 @@ func (b *Bindings) streamWorkspace(fn func(io.Writer) error) error {
 	return nil
 }
 
-// emit is the v3 replacement for runtime.EventsEmit. We package the
-// payload into a single Data field; the frontend handler treats the
-// CustomEvent as `{ name, data, sender }` and reads `data`.
+// emit forwards an event to the UI, if anything is listening.
 func (b *Bindings) emit(name string, data any) {
-	if b.app == nil {
+	if b.emitFn == nil {
 		return
 	}
-	b.app.Event.EmitEvent(&application.CustomEvent{Name: name, Data: data})
+	b.emitFn(name, data)
 }
