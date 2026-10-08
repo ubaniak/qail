@@ -40,9 +40,12 @@ function resourcePath(...parts) {
     : path.join(__dirname, "..", "..", ...parts);
 }
 
+// The binary shipped inside the app. The CLI link always targets this,
+// never a QAIL_BIN dev override.
+const bundledBinary = () => resourcePath("bin", exe);
+
 function backendPath() {
-  if (process.env.QAIL_BIN) return process.env.QAIL_BIN;
-  return resourcePath("bin", exe);
+  return process.env.QAIL_BIN || bundledBinary();
 }
 
 let win = null;
@@ -151,7 +154,7 @@ function createTray() {
   const menu = Menu.buildFromTemplate([
     { label: "Show qail", click: showWindow },
     ...(cli.supported()
-      ? [{ label: "Install Command Line Tool…", click: () => cli.install(backendPath()) }]
+      ? [{ label: "Install Command Line Tool…", click: () => cli.install(bundledBinary()) }]
       : []),
     { type: "separator" },
     { label: "Quit", click: () => app.quit() },
@@ -230,7 +233,7 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc();
     createWindow();
     createTray();
-    cli.offerOnFirstLaunch(backendPath());
+    cli.offerOnFirstLaunch(bundledBinary());
 
     if (!globalShortcut.register("Control+Alt+Q", toggleWindow)) {
       console.error("global hotkey Ctrl+Alt+Q unavailable");

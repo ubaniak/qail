@@ -58,9 +58,17 @@ function linkAsAdmin(target) {
 
 // Running straight from the mounted .dmg, or from a quarantined copy that
 // macOS has moved to a random path (App Translocation), the binary's path
-// won't survive; a link to it would break on eject or relaunch.
-const temporaryLocation = (target) =>
-  target.startsWith("/Volumes/") || target.includes("/AppTranslocation/");
+// won't survive; a link to it would break on eject or relaunch. Both live
+// on read-only volumes, which catches a .dmg mounted outside /Volumes too.
+function temporaryLocation(target) {
+  if (target.startsWith("/Volumes/") || target.includes("/AppTranslocation/")) return true;
+  try {
+    fs.accessSync(path.dirname(target), fs.constants.W_OK);
+  } catch (err) {
+    return err.code === "EROFS";
+  }
+  return false;
+}
 
 // install links the CLI, asking before replacing a qail it didn't put
 // there. quiet skips the "already installed" message (used by the
@@ -113,7 +121,9 @@ async function install(target, { quiet = false } = {}) {
   }
   showMessageBox({
     message: "The qail command is installed.",
-    detail: "Open a new terminal window and run `qail`.",
+    detail:
+      "Open a new terminal window and run `qail`. If an older qail runs instead, " +
+      "`which -a qail` shows which copy comes first on your PATH.",
   });
 }
 
@@ -131,7 +141,7 @@ async function offerOnFirstLaunch(target) {
     type: "question",
     message: "Install the qail command line tool?",
     detail:
-      `This adds \`qail\` to ${LINK} so you can use it from any terminal. ` +
+      `This links ${LINK} to the qail inside this app, so you can run \`qail\` from any terminal. ` +
       "You can do this later from the tray menu.",
     buttons: ["Install", "Not Now"],
     defaultId: 0,
