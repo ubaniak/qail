@@ -1,4 +1,4 @@
-// Fixed top bar — Q logo left, Settings icon right. The whole bar is
+// Fixed top bar — app icon left, Settings icon right. The whole bar is
 // the window drag region via data-drag (-webkit-app-region: drag in
 // index.css). Interactive children inherit no-drag via the override.
 //
@@ -8,6 +8,9 @@
 import { CloseOutlined, SettingOutlined } from "@ant-design/icons";
 import { hideWindow } from "../../desktop";
 import { Button } from "antd";
+
+// public/icon.png, resolved against Vite's base so it loads over file://.
+const appIcon = `${import.meta.env.BASE_URL}icon.png`;
 
 export type TopBarProps = {
   onSettingsClick?: () => void;
@@ -22,14 +25,14 @@ export default function TopBar({ onSettingsClick, settingsActive }: TopBarProps)
                  border-b border-zinc-800/60 backdrop-blur-2xl
                  bg-zinc-900/65"
     >
-      {/* LEFT — Q logo */}
+      {/* LEFT — app icon */}
       <div className="flex items-center gap-2">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center
-                     bg-emerald-500 text-zinc-950 font-bold text-base select-none"
-        >
-          Q
-        </div>
+        <img
+          src={appIcon}
+          alt=""
+          draggable={false}
+          className="w-8 h-8 select-none"
+        />
         <span className="text-zinc-200 text-sm font-medium tracking-tight">
           qail
         </span>

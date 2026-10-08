@@ -96,6 +96,8 @@ make installer-linux        # → .deb + .AppImage
 
 Output: `build/installers/`. Config lives under `"build"` in `frontend/package.json`.
 
+On macOS the `.dmg` also gives you the CLI: on first launch from Applications the app offers to install the `qail` command, and the tray menu has **Install Command Line Tool…** for later. It links `/usr/local/bin/qail` to the binary inside the app (asking for an admin password if that folder isn't writable), so the CLI and the app always run the same version.
+
 ## Run
 
 | Action | Command |
