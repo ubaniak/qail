@@ -27,6 +27,7 @@ const {
 } = require("electron");
 
 const { Backend } = require("./backend.cjs");
+const cli = require("./cli.cjs");
 
 const DEV_URL = process.env.QAIL_DEV_SERVER_URL;
 const exe = process.platform === "win32" ? "qail.exe" : "qail";
@@ -149,6 +150,9 @@ function createTray() {
 
   const menu = Menu.buildFromTemplate([
     { label: "Show qail", click: showWindow },
+    ...(cli.supported()
+      ? [{ label: "Install Command Line Tool…", click: () => cli.install(backendPath()) }]
+      : []),
     { type: "separator" },
     { label: "Quit", click: () => app.quit() },
   ]);
@@ -226,6 +230,7 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc();
     createWindow();
     createTray();
+    cli.offerOnFirstLaunch(backendPath());
 
     if (!globalShortcut.register("Control+Alt+Q", toggleWindow)) {
       console.error("global hotkey Ctrl+Alt+Q unavailable");

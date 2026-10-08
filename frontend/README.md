@@ -10,6 +10,8 @@ React + Vite UI, packaged as an Electron menubar app.
 - `electron/backend.cjs` — spawns `qail desktop-backend` and speaks its
   newline-delimited JSON protocol (see `internal/app/rpc.go`).
 - `electron/preload.cjs` — exposes `window.qail` to the renderer.
+- `electron/cli.cjs` — macOS "Install Command Line Tool": links
+  `/usr/local/bin/qail` to the app's bundled binary.
 
 From the repo root:
 
