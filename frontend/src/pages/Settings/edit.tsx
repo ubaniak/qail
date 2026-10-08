@@ -1,7 +1,7 @@
 // Edit forms for Settings: root path and editor registration.
 
 import { CodeOutlined, FolderOpenOutlined, RobotOutlined } from "@ant-design/icons";
-import { Dialogs } from "@wailsio/runtime";
+import { pickDirectory } from "../../desktop";
 import { Input } from "antd";
 import { useState } from "react";
 import { QButton } from "../../component/Buttons/QButton";
@@ -59,13 +59,8 @@ export const EditRoot = ({ root: initialRoot, onClose }: EditRootProps) => {
           <QButton
             variant="cancel"
             onClick={async () => {
-              const picked = await Dialogs.OpenFile({
-                Title: "Choose workspace root",
-                CanChooseDirectories: true,
-                CanChooseFiles: false,
-                CanCreateDirectories: true,
-              });
-              if (typeof picked === "string" && picked) setRoot(picked);
+              const picked = await pickDirectory("Choose workspace root");
+              if (picked) setRoot(picked);
             }}
           >
             Browse

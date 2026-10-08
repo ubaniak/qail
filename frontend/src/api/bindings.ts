@@ -1,18 +1,13 @@
-// Thin typed wrapper around the Wails v3 generated bindings under
-// frontend/bindings/. The rest of the app imports `requireApi()` and
-// calls methods on the returned object, exactly as it did under v2 with
-// window.go.app.Bindings.<Method>. The wrapper:
+// Typed surface of the Go Bindings (internal/app/bindings.go). The rest
+// of the app imports `requireApi()` and calls methods on the returned
+// object. Each method is forwarded by name over the Electron bridge to
+// the `qail desktop-backend` process, which dispatches it to the Go
+// method of the same name with the same positional arguments.
 //
-//   - turns CancellablePromise return values into plain Promise so the
-//     existing `await` callers don't need to change,
-//   - lets api/qail.ts keep its hand-typed shape independent of the
-//     generated d.ts files (regenerated bindings can change without
-//     rippling through every callsite).
-//
-// If a method is added on the Go side: run `wails3 generate bindings`,
-// then add it here so the type-check covers the call site.
+// If a method is added on the Go side, add it to the Bindings type here
+// so the type-check covers the call site.
 
-import * as B from "../../bindings/github.com/ubaniak/qail/internal/app/bindings.js";
+import { call } from "../desktop";
 import type { models, WorkspaceMap, RepoMap, Scope } from "../types";
 
 export type Bindings = {
@@ -71,72 +66,17 @@ export type Bindings = {
   RemoveMuxSession: (name: string) => Promise<void>;
 };
 
-// Hash maps generated CancellablePromise<T> → Promise<T> by wrapping in
-// async. We don't need cancellation anywhere in the UI yet.
-const wrap = <T,>(p: PromiseLike<T>): Promise<T> => Promise.resolve(p);
+// Every property access yields a function that forwards its arguments to
+// the Go method of the same name. The Bindings type above is what keeps
+// call sites honest.
+export const api = new Proxy({} as Bindings, {
+  get: (_target, method) =>
+    typeof method === "string"
+      ? (...args: unknown[]) => call(method, args)
+      : undefined,
+});
 
-export const api: Bindings = {
-  GetConfig: () => wrap(B.GetConfig()) as Promise<models.ConfigDTO>,
-  SetRoot: (v) => wrap(B.SetRoot(v)),
-  AddEditor: (n, c) => wrap(B.AddEditor(n, c)),
-  RemoveEditor: (n) => wrap(B.RemoveEditor(n)),
-  SetDefaultEditor: (n) => wrap(B.SetDefaultEditor(n)),
-  SetWorkspaceEditor: (ws, n) => wrap(B.SetWorkspaceEditor(ws, n)),
-  AddAI: (n, c) => wrap(B.AddAI(n, c)),
-  RemoveAI: (n) => wrap(B.RemoveAI(n)),
-  SetDefaultAI: (n) => wrap(B.SetDefaultAI(n)),
-  SetWorkspaceAI: (ws, n) => wrap(B.SetWorkspaceAI(ws, n)),
-
-  ListRepos: () => wrap(B.ListRepos()) as Promise<RepoMap>,
-  AddRepo: (name, url) => wrap(B.AddRepo(name, url)),
-  RemoveRepos: (names) => wrap(B.RemoveRepos(names)),
-  SetRepoPostInstall: (repo, s) => wrap(B.SetRepoPostInstall(repo, s)),
-
-  ListWorkspaces: () => wrap(B.ListWorkspaces()) as Promise<WorkspaceMap>,
-  AddWorkspace: (name, pkgs, postInstall) => wrap(B.AddWorkspace(name, pkgs, postInstall)),
-  EditWorkspace: (name, pkgs) => wrap(B.EditWorkspace(name, pkgs)),
-  CloneWorkspace: (dst, pkgs) => wrap(B.CloneWorkspace(dst, pkgs)),
-  CreateWorkspaceOnDisk: (name) => wrap(B.CreateWorkspaceOnDisk(name)),
-  RemoveWorkspace: (name) => wrap(B.RemoveWorkspace(name)),
-  ListOrphanWorkspaces: () => wrap(B.ListOrphanWorkspaces()) as Promise<string[]>,
-  RemoveOrphanWorkspaces: (names) => wrap(B.RemoveOrphanWorkspaces(names)),
-  OrphanPath: (name) => wrap(B.OrphanPath(name)),
-  OpenOrphanEditor: (name) => wrap(B.OpenOrphanEditor(name)),
-  OpenOrphanAI: (name) => wrap(B.OpenOrphanAI(name)),
-  InspectOrphan: (name) =>
-    wrap(B.InspectOrphan(name)) as Promise<models.OrphanInspectionDTO>,
-  RestoreWorkspace: (name, repos) => wrap(B.RestoreWorkspace(name, repos)),
-  SetWorkspacePostInstall: (name, s) => wrap(B.SetWorkspacePostInstall(name, s)),
-  CdWorkspace: (name) => wrap(B.CdWorkspace(name)),
-  AttachCommand: (name) => wrap(B.AttachCommand(name)),
-  OpenCommand: (name) => wrap(B.OpenCommand(name)) as Promise<models.OpenCommandDTO>,
-  OpenCommandWith: (name, editor) =>
-    wrap(B.OpenCommandWith(name, editor)) as Promise<models.OpenCommandDTO>,
-  OpenEditor: (name) => wrap(B.OpenEditor(name)),
-  OpenEditorWith: (name, editor) => wrap(B.OpenEditorWith(name, editor)),
-  OpenAICommand: (name) => wrap(B.OpenAICommand(name)) as Promise<models.OpenAICommandDTO>,
-  OpenAICommandWith: (name, ai) =>
-    wrap(B.OpenAICommandWith(name, ai)) as Promise<models.OpenAICommandDTO>,
-  OpenAI: (name) => wrap(B.OpenAI(name)),
-  OpenAIWith: (name, ai) => wrap(B.OpenAIWith(name, ai)),
-  ExplorePath: (name) => wrap(B.ExplorePath(name)),
-
-  ListScripts: (scope) => wrap(B.ListScripts(scope)),
-  AddScript: (name, scope) => wrap(B.AddScript(name, scope)),
-  RemoveScript: (name, scope) => wrap(B.RemoveScript(name, scope)),
-  ReadScript: (name, scope) => wrap(B.ReadScript(name, scope)),
-  WriteScript: (name, scope, contents) => wrap(B.WriteScript(name, scope, contents)),
-  ScriptsDir: () => wrap(B.ScriptsDir()),
-  RunWorkspaceScript: (ws, script) => wrap(B.RunWorkspaceScript(ws, script)),
-  RunRepoScript: (ws, repo, script) => wrap(B.RunRepoScript(ws, repo, script)),
-
-  ListMuxSessions: () => wrap(B.ListMuxSessions()),
-  RemoveMuxSession: (name) => wrap(B.RemoveMuxSession(name)),
-};
-
-// requireApi mirrors the v2 contract: a single call site for every
-// page. v3 doesn't need a runtime presence probe (the generated $Call
-// throws on its own if not in Wails) so this is now a static accessor.
+// requireApi is the single accessor every page uses.
 export function requireApi(): Bindings {
   return api;
 }

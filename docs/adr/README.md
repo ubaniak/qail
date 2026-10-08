@@ -20,6 +20,7 @@ Decisions that shape `qail`'s architecture. Numbered, append-only.
 | [0014](0014-actions-own-session-side-commands.md) | Actions own session-side commands (open / cd / explore / mux) | Accepted |
 | [0015](0015-forms-split-select-from-confirm.md) | Forms split selection from confirmation | Accepted |
 | [0016](0016-http-api-layer.md) | HTTP API layer over the actions package | Accepted |
+| [0017](0017-electron-desktop-app.md) | Electron desktop app over a stdio RPC backend | Accepted |
 
 ## Format
 

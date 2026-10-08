@@ -4,12 +4,11 @@
 //
 // Mirrors qail_ui's QailServiceProvider so pages port over with minimal
 // edits; the only adapter is that workspace-creating mutations also
-// open the progress drawer (Wails event stream).
+// open the progress drawer (backend progress event stream).
 
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import { Spin } from "antd";
-import { Clipboard } from "@wailsio/runtime";
 
 import {
   fetchOrphanInspection,
@@ -53,6 +52,7 @@ import {
 import type { models, RepoMap, Scope, Settings, WorkspaceMap } from "../types";
 import { useNotification } from "./notification";
 import { useProgress } from "./progress";
+import { copyText } from "../desktop";
 
 export type ScriptsByScope = {
   workspace: string[];
@@ -138,12 +138,12 @@ export type QailServiceShape = {
 
 const QailServiceContext = createContext<QailServiceShape | null>(null);
 
-// Wails v3 routes Clipboard.SetText through the native runtime, which is
-// the only reliable path inside the WKWebView — navigator.clipboard
-// silently fails because the webview origin isn't a secure context.
+// Clipboard writes go through Electron's main-process clipboard, which
+// works regardless of focus or origin (navigator.clipboard does not on
+// file://).
 async function copyToClipboard(text: string): Promise<void> {
   try {
-    await Clipboard.SetText(text);
+    await copyText(text);
   } catch {
     /* swallow — UI already toasted success; surfacing a copy error is
        worse than a missed clipboard write in this flow. */

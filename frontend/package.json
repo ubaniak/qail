@@ -1,36 +1,96 @@
 {
-  "name": "frontend",
+  "name": "qail",
+  "productName": "qail",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Multi-repo workspace manager",
+  "author": "qail",
+  "homepage": "https://github.com/ubaniak/qail",
+  "repository": "github:ubaniak/qail",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@ant-design/icons": "^5.5.2",
-    "@tailwindcss/vite": "^4.3.0",
-    "@wailsio/runtime": "latest",
-    "antd": "^5.22.0",
-    "date-fns": "^4.1.0",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
-    "tailwindcss": "^4.3.0"
+    "preview": "vite preview",
+    "electron": "electron .",
+    "electron:dev": "node electron/dev.mjs",
+    "dist": "npm run build && electron-builder"
   },
   "devDependencies": {
+    "@ant-design/icons": "^5.5.2",
     "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.3.0",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "antd": "^5.22.0",
+    "date-fns": "^4.1.0",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "tailwindcss": "^4.3.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10"
+  },
+  "build": {
+    "appId": "dev.qail.app",
+    "productName": "qail",
+    "directories": {
+      "output": "../build/installers",
+      "buildResources": "../build"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "!electron/dev.mjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../bin",
+        "to": "bin",
+        "filter": [
+          "qail",
+          "qail.exe"
+        ]
+      },
+      {
+        "from": "../icon.png",
+        "to": "icon.png"
+      }
+    ],
+    "icon": "../build/appicon.png",
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg"
+      ],
+      "extendInfo": {
+        "LSUIElement": true
+      }
+    },
+    "linux": {
+      "category": "Development",
+      "target": [
+        "deb",
+        "AppImage"
+      ],
+      "maintainer": "qail"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "publish": null
   }
 }
