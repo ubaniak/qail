@@ -138,7 +138,42 @@ func (s *Server) call(method string, rawArgs []json.RawMessage) (result any, err
 		return nil, errV.Interface().(error)
 	}
 	if len(out) == 2 {
-		return out[0].Interface(), nil
+		return emptyNils(out[0]).Interface(), nil
 	}
 	return nil, nil
+}
+
+// emptyNils returns v with every nil slice or map, at any depth, replaced
+// by an empty one, so JSON carries [] / {} instead of null. The UI reads
+// `.length` on list results without null checks (Wails' generated
+// bindings used to do this conversion for it).
+func emptyNils(v reflect.Value) reflect.Value {
+	switch v.Kind() {
+	case reflect.Slice:
+		if v.IsNil() {
+			return reflect.MakeSlice(v.Type(), 0, 0)
+		}
+		out := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
+		for i := 0; i < v.Len(); i++ {
+			out.Index(i).Set(emptyNils(v.Index(i)))
+		}
+		return out
+	case reflect.Map:
+		out := reflect.MakeMapWithSize(v.Type(), v.Len())
+		iter := v.MapRange()
+		for iter.Next() {
+			out.SetMapIndex(iter.Key(), emptyNils(iter.Value()))
+		}
+		return out
+	case reflect.Struct:
+		out := reflect.New(v.Type()).Elem()
+		out.Set(v)
+		for i := 0; i < v.NumField(); i++ {
+			if f := out.Field(i); f.CanSet() {
+				f.Set(emptyNils(f))
+			}
+		}
+		return out
+	}
+	return v
 }

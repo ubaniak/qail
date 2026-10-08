@@ -74,6 +74,7 @@ class Backend {
     // Restart lazily if the backend died, so one crash doesn't brick the
     // tray app until the user quits it.
     if (!this.child && !this.stopping) this.start();
+    if (!this.child) return Promise.reject(new Error("qail backend is shutting down"));
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });

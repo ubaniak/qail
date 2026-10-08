@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -46,6 +47,33 @@ func TestServerCallsBindings(t *testing.T) {
 	}
 	if repos["api"].URL != "git@example.com:api.git" {
 		t.Fatalf("ListRepos = %+v", repos)
+	}
+}
+
+// A nil slice from Go must reach the UI as [] rather than null: the
+// Settings page reads .length on ListOrphanWorkspaces' result, and a
+// fresh install (no root set) returns nil.
+func TestServerSendsEmptyListsNotNull(t *testing.T) {
+	got := roundTrip(t, config.NewMemoryStore(),
+		`{"id":1,"method":"ListOrphanWorkspaces","args":[]}`)
+	if r := string(got[1]["result"]); r != "[]" {
+		t.Fatalf("ListOrphanWorkspaces result = %s, want []", r)
+	}
+
+	type inner struct{ Tags []string }
+	type outer struct {
+		Items []inner
+		ByKey map[string][]string
+		Ptr   *inner
+	}
+	in := outer{Items: []inner{{}}, ByKey: map[string][]string{"a": nil}}
+	buf, err := json.Marshal(emptyNils(reflect.ValueOf(in)).Interface())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"Items":[{"Tags":[]}],"ByKey":{"a":[]},"Ptr":null}`
+	if string(buf) != want {
+		t.Fatalf("emptyNils = %s, want %s", buf, want)
 	}
 }
 

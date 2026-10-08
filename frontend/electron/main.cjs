@@ -49,6 +49,10 @@ let tray = null;
 let backend = null;
 let quitting = false;
 let dialogOpen = false;
+// When the window is open, clicking the tray blurs the window (hiding
+// it) just before the tray's click fires. Remember when blur hid it so
+// that click doesn't immediately show it again.
+let lastBlurHide = 0;
 
 function createWindow() {
   win = new BrowserWindow({
@@ -91,7 +95,10 @@ function createWindow() {
   // Behave like a menubar popover: dismiss on focus loss. Skipped while
   // devtools are open, otherwise inspecting the UI hides it.
   win.on("blur", () => {
-    if (!dialogOpen && !win.webContents.isDevToolsOpened()) win.hide();
+    if (!dialogOpen && !win.webContents.isDevToolsOpened()) {
+      lastBlurHide = Date.now();
+      win.hide();
+    }
   });
 }
 
@@ -128,7 +135,7 @@ function showWindow() {
 
 function toggleWindow() {
   if (win.isVisible()) win.hide();
-  else showWindow();
+  else if (Date.now() - lastBlurHide > 300) showWindow();
 }
 
 function createTray() {

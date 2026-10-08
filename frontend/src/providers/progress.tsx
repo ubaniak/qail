@@ -19,6 +19,12 @@ import {
 import type { ReactNode } from "react";
 import { onEvent } from "../desktop";
 
+// The Go side colours its CLI output; the drawer renders plain text.
+// eslint-disable-next-line no-control-regex
+const ANSI = /\x1b\[[0-9;]*m/g;
+const plain = (data: unknown) =>
+  (typeof data === "string" ? data : String(data ?? "")).replace(ANSI, "");
+
 export type ProgressStatus = "idle" | "running" | "done" | "error";
 
 type Ctx = {
@@ -46,7 +52,7 @@ export const ProgressProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const offProgress = onEvent("workspace:progress", (data) => {
-      const line = typeof data === "string" ? data : String(data ?? "");
+      const line = plain(data);
       setLines((prev) => [...prev, line]);
     });
     const offDone = onEvent("workspace:done", () => {
@@ -54,7 +60,7 @@ export const ProgressProvider = ({ children }: { children: ReactNode }) => {
     });
     const offError = onEvent("workspace:error", (data) => {
       setStatus("error");
-      const msg = typeof data === "string" ? data : String(data ?? "");
+      const msg = plain(data);
       setErrorMsg(msg);
     });
     return () => {
