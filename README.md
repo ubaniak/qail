@@ -85,18 +85,20 @@ The window lives under a tray icon: left-click toggles it, right-click opens the
 
 ### Installers
 
-electron-builder packages the frontend plus `bin/qail` (shipped as `resources/bin/qail`). The Go binary links SQLite via cgo, so build each installer on its target OS.
+electron-builder packages the frontend plus `bin/qail` (shipped as `resources/bin/qail`). The Go binary links SQLite via cgo, so build the macOS and Linux installers on their target OS. The Windows installer can also be built on macOS or Linux: `make installer-windows` cross-compiles `bin/qail.exe`, which needs a MinGW C compiler (`brew install mingw-w64` on macOS).
 
 ```sh
 make installer              # native installer(s) for the host OS
 make installer-mac          # → .dmg
-make installer-windows      # → NSIS .exe
+make installer-windows      # → NSIS .exe (x64)
 make installer-linux        # → .deb + .AppImage
 ```
 
 Output: `build/installers/`. Config lives under `"build"` in `frontend/package.json`.
 
 On macOS the `.dmg` also gives you the CLI: on first launch from Applications the app offers to install the `qail` command, and the tray menu has **Install Command Line Tool…** for later. It links `/usr/local/bin/qail` to the binary inside the app (asking for an admin password if that folder isn't writable), so the CLI and the app always run the same version.
+
+On Windows the installer adds the app's `resources\bin` folder to your user `PATH`, so `qail` works in any new terminal; uninstalling removes it again (`build/installer.nsh`).
 
 ## Run
 
