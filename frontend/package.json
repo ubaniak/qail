@@ -56,14 +56,6 @@
     ],
     "extraResources": [
       {
-        "from": "../bin",
-        "to": "bin",
-        "filter": [
-          "qail",
-          "qail.exe"
-        ]
-      },
-      {
         "from": "../icon.png",
         "to": "icon.png"
       }
@@ -76,7 +68,16 @@
       ],
       "extendInfo": {
         "LSUIElement": true
-      }
+      },
+      "extraResources": [
+        {
+          "from": "../bin",
+          "to": "bin",
+          "filter": [
+            "qail"
+          ]
+        }
+      ]
     },
     "linux": {
       "category": "Development",
@@ -84,11 +85,29 @@
         "deb",
         "AppImage"
       ],
-      "maintainer": "qail"
+      "maintainer": "qail",
+      "extraResources": [
+        {
+          "from": "../bin",
+          "to": "bin",
+          "filter": [
+            "qail"
+          ]
+        }
+      ]
     },
     "win": {
       "target": [
         "nsis"
+      ],
+      "extraResources": [
+        {
+          "from": "../bin",
+          "to": "bin",
+          "filter": [
+            "qail.exe"
+          ]
+        }
       ]
     },
     "publish": null
