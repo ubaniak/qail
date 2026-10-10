@@ -66,9 +66,19 @@
       {
         "from": "../icon.png",
         "to": "icon.png"
+      },
+      {
+        "from": "../icon@2x.png",
+        "to": "icon@2x.png"
       }
     ],
     "icon": "../build/appicon.png",
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "onlyLoadAppFromAsar": true
+    },
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [

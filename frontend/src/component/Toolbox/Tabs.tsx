@@ -25,16 +25,9 @@ export default function ToolboxTabs({
 }: ToolboxTabsProps) {
   const items = tabs.map((t) => ({
     key: t.key,
-    label: (
-      <span className="flex items-center gap-2">
-        <span>{t.label}</span>
-        {t.shortcut && (
-          <span className="text-[10px] uppercase tracking-wider text-zinc-500">
-            {t.shortcut}
-          </span>
-        )}
-      </span>
-    ),
+    // The shortcut goes in a tooltip: inline hints don't fit four tabs
+    // in the 480px window.
+    label: <span title={t.shortcut}>{t.label}</span>,
     children: <div className="pt-3">{t.component}</div>,
   }));
 
