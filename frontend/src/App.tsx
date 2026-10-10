@@ -19,6 +19,8 @@ import { WorkspaceIndex } from "./pages/Workspace";
 import { useQailService } from "./providers/qailservice";
 
 const STORAGE_KEY = "qail.tabKey";
+// Tab hotkeys accept Cmd or Ctrl; show the one this platform uses.
+const MOD = /Mac/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
 function App() {
   const { list } = useQailService();
@@ -34,25 +36,25 @@ function App() {
         key: "workspaces",
         label: `Workspaces (${numWorkspaces})`,
         component: <WorkspaceIndex />,
-        shortcut: "⌘1",
+        shortcut: `${MOD}1`,
       },
       {
         key: "repos",
         label: `Repos (${numRepos})`,
         component: <RepoIndex />,
-        shortcut: "⌘2",
+        shortcut: `${MOD}2`,
       },
       {
         key: "tmux",
         label: `Tmux (${numTmux})`,
         component: <TmuxIndex />,
-        shortcut: "⌘3",
+        shortcut: `${MOD}3`,
       },
       {
         key: "postinstall",
         label: "Post-install",
         component: <PostInstallIndex />,
-        shortcut: "⌘4",
+        shortcut: `${MOD}4`,
       },
     ],
     [numWorkspaces, numRepos, numTmux]
