@@ -154,7 +154,13 @@ function toggleWindow() {
 }
 
 function createTray() {
-  const iconFile = resourcePath("icon.png");
+  // The tray shows a plain "q". On macOS it's a template image (black +
+  // alpha, "Template" suffix) so the menu bar tints it for light/dark
+  // mode and highlights it when clicked; elsewhere it's drawn white.
+  // nativeImage picks up the @2x sibling for Retina/HiDPI automatically.
+  const iconFile = resourcePath(
+    process.platform === "darwin" ? "iconTemplate.png" : "icon.png"
+  );
   const icon = fs.existsSync(iconFile)
     ? nativeImage.createFromPath(iconFile)
     : nativeImage.createEmpty();

@@ -86,6 +86,14 @@
           "filter": [
             "qail"
           ]
+        },
+        {
+          "from": "../iconTemplate.png",
+          "to": "iconTemplate.png"
+        },
+        {
+          "from": "../iconTemplate@2x.png",
+          "to": "iconTemplate@2x.png"
         }
       ]
     },
