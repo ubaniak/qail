@@ -27,12 +27,19 @@ test:
 
 # Installers — electron-builder packages the frontend plus bin/qail
 # (as resources/bin/qail) into build/installers/. The Go binary links
-# SQLite via cgo, so build each installer on its target OS.
+# SQLite via cgo, so build mac and linux installers on their target OS;
+# Windows can also be cross-built (see build-windows).
 installer-mac: build frontend
 	cd frontend && npx electron-builder --mac
 
-installer-windows: build frontend
-	cd frontend && npx electron-builder --win
+# The Windows installer needs bin/qail.exe. On Windows that's plain
+# `make build`; anywhere else it cross-compiles, and cgo then needs a
+# MinGW C compiler (macOS: brew install mingw-w64).
+build-windows:
+	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 $(if $(filter Windows_NT,$(OS)),,CC=x86_64-w64-mingw32-gcc) go build -o bin/qail.exe .
+
+installer-windows: build-windows frontend
+	cd frontend && npx electron-builder --win --x64
 
 installer-linux: build frontend
 	cd frontend && npx electron-builder --linux
@@ -41,4 +48,4 @@ installer-linux: build frontend
 installer: build frontend
 	cd frontend && npx electron-builder
 
-.PHONY: build frontend app app-dev test installer installer-mac installer-windows installer-linux
+.PHONY: build build-windows frontend app app-dev test installer installer-mac installer-windows installer-linux
