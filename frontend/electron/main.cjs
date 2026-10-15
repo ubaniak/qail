@@ -29,6 +29,17 @@ const {
 const { Backend } = require("./backend.cjs");
 const cli = require("./cli.cjs");
 
+// Packaged builds refuse Chromium's remote-debugging switches, which would
+// let any local program drive the app (and through it, the backend). The
+// Node --inspect flags are already disabled by electron-builder's fuses
+// (package.json "electronFuses"); these have no fuse.
+if (
+  app.isPackaged &&
+  process.argv.some((a) => /^--remote-debugging-(port|pipe)/.test(a))
+) {
+  app.exit(1);
+}
+
 const DEV_URL = process.env.QAIL_DEV_SERVER_URL;
 const exe = process.platform === "win32" ? "qail.exe" : "qail";
 
