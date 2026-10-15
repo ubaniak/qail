@@ -29,13 +29,10 @@ export default function TopBar({ onSettingsClick, settingsActive }: TopBarProps)
       <div className="flex items-center gap-2">
         <img
           src={appIcon}
-          alt=""
+          alt="qail"
           draggable={false}
           className="w-8 h-8 select-none"
         />
-        <span className="text-zinc-200 text-sm font-medium tracking-tight">
-          qail
-        </span>
       </div>
 
       {/* RIGHT — actions */}
