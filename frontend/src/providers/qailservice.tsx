@@ -6,7 +6,7 @@
 // edits; the only adapter is that workspace-creating mutations also
 // open the progress drawer (backend progress event stream).
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useState } from "react";
 import type { ReactNode } from "react";
 import { Spin } from "antd";
 
@@ -539,6 +539,13 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
     repoScripts.error ||
     orphans.error;
 
+  // Only the first load gates the UI. Later refreshes (after every
+  // mutation) update the lists in place; swapping the whole tree for a
+  // spinner there unmounted every page, dropping open forms, scroll
+  // position and the Settings overlay, and made each action feel slow.
+  const [ready, setReady] = useState(false);
+  if (!ready && !loading) setReady(true);
+
   if (firstError && !loading) {
     // Surface the error once; the UI is still usable with empty lists.
     // Don't toast here (would fire on every re-render); pages render
@@ -547,7 +554,7 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <QailServiceContext.Provider value={value}>
-      {loading ? (
+      {!ready ? (
         <div className="flex items-center justify-center h-full">
           <Spin />
         </div>
