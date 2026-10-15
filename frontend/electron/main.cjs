@@ -158,6 +158,8 @@ function createTray() {
   const icon = fs.existsSync(iconFile)
     ? nativeImage.createFromPath(iconFile)
     : nativeImage.createEmpty();
+  // A template image lets macOS tint the "q" to suit a light or dark menu bar.
+  if (process.platform === "darwin") icon.setTemplateImage(true);
   tray = new Tray(icon);
   if (icon.isEmpty()) tray.setTitle?.("Q");
   tray.setToolTip("qail");
