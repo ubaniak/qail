@@ -167,15 +167,16 @@ export const WorkspaceIndex = () => {
                 <div className="mt-1">
                   {repos.length > 0 ? (
                     <div className="flex flex-wrap gap-1 mb-1">
+                      {/* Plain spans styled like antd's default Tag: a
+                          workspace list renders one chip per repo, and
+                          each antd Tag re-registers its styles on render. */}
                       {repos.map((r) => (
-                        <Tag
+                        <span
                           key={r}
-                          bordered
-                          color="default"
-                          className="!text-[10px] !leading-4 !m-0"
+                          className="px-[7px] text-[10px] leading-4 rounded border border-zinc-700 bg-white/[0.04] text-zinc-300"
                         >
                           {r}
-                        </Tag>
+                        </span>
                       ))}
                     </div>
                   ) : (

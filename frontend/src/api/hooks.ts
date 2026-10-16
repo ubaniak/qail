@@ -3,7 +3,7 @@
 // uniform: every read returns { loading, error, result, refresh }, every
 // write returns a fire-and-forget shape that invokes onSuccess/onError.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type CallServiceProps<T> = {
   call: () => Promise<T>;
@@ -26,21 +26,32 @@ export const callService = <T,>(
   const [result, setResult] = useState<T>(initial);
   const [refreshKey, setRefreshKey] = useState(0);
   const depsSig = depsKey === undefined ? "" : JSON.stringify(depsKey);
+  // JSON of the last result, so a refresh that returns the same data
+  // doesn't hand React a new object and re-render every page.
+  const lastJson = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(undefined);
+    // Only the first load (and a deps change) shows as loading; a refresh
+    // keeps the current list on screen and swaps it when the new one
+    // lands, so it costs one render instead of three.
+    if (refreshKey === 0) setLoading(true);
     props
       .call()
       .then((res) => {
-        if (!cancelled) setResult(res);
+        if (cancelled) return;
+        const json = JSON.stringify(res);
+        if (json !== lastJson.current) {
+          lastJson.current = json;
+          setResult(res);
+        }
+        setError(undefined);
+        setLoading(false);
       })
       .catch((err) => {
-        if (!cancelled) setError(err as Error);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (cancelled) return;
+        setError(err as Error);
+        setLoading(false);
       });
     return () => {
       cancelled = true;
@@ -48,12 +59,8 @@ export const callService = <T,>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey, depsSig]);
 
-  return {
-    loading,
-    error,
-    result,
-    refresh: () => setRefreshKey((k) => k + 1),
-  };
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  return { loading, error, result, refresh };
 };
 
 export type MutateServiceProps = {
