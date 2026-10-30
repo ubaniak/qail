@@ -6,7 +6,7 @@
 // edits; the only adapter is that workspace-creating mutations also
 // open the progress drawer (backend progress event stream).
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Spin } from "antd";
 
@@ -155,6 +155,15 @@ export const QailServiceProvider = ({ children }: { children: ReactNode }) => {
   const progress = useProgress();
 
   const ws = useListWorkspaces();
+  // Branches change outside the app, so re-read the workspace list
+  // (which carries each repo's checked-out branch) whenever the window
+  // is shown. refresh only touches a state setter, so registering the
+  // first render's copy is fine.
+  useEffect(() => {
+    window.addEventListener("focus", ws.refresh);
+    return () => window.removeEventListener("focus", ws.refresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const repos = useListRepos();
   const settings = useListSettings();
   const tmux = useListTmux();
