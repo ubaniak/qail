@@ -16,6 +16,11 @@ import { AddWorkspace } from "./add";
 import { EditWorkspace } from "./edit";
 import { RemoveWorkspace } from "./remove";
 
+// Hover text for a repo chip. A native title keeps the hover free: no
+// extra component per chip.
+const branchTitle = (branch?: string) =>
+  branch ? `Branch: ${branch}` : "Not cloned";
+
 export const WorkspaceIndex = () => {
   const { list, open, mux, cd, editors, ais } = useQailService();
   const { toast } = useNotification();
@@ -170,6 +175,7 @@ export const WorkspaceIndex = () => {
                       {repos.map((r) => (
                         <Tag
                           key={r}
+                          title={branchTitle(ws.branches?.[r])}
                           bordered
                           color="default"
                           className="!text-[10px] !leading-4 !m-0"

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ubaniak/qail/internal/config"
+	"github.com/ubaniak/qail/internal/git"
 	"github.com/ubaniak/qail/internal/installer"
 	"github.com/ubaniak/qail/internal/scripts"
 	"github.com/ubaniak/qail/internal/workspace"
@@ -151,6 +152,31 @@ func ListWorkspaces(s config.Store) (config.Workspace, map[string][]string, erro
 		return nil, nil, err
 	}
 	return cfg.Workspaces, cfg.PostInstallScripts.Workspace, nil
+}
+
+// WorkspaceBranches returns, per workspace, the branch checked out in each
+// of its repos on disk. Repos that are not cloned (or not git repos) are
+// left out, as are workspaces with none, so callers can treat a missing
+// entry as "unknown".
+func WorkspaceBranches(s config.Store) (map[string]map[string]string, error) {
+	cfg, err := s.Read()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]map[string]string)
+	for name, profile := range cfg.Workspaces {
+		for _, repo := range profile.Repos {
+			branch := git.CurrentBranch(path.Join(cfg.Root, name, repo))
+			if branch == "" {
+				continue
+			}
+			if out[name] == nil {
+				out[name] = make(map[string]string)
+			}
+			out[name][repo] = branch
+		}
+	}
+	return out, nil
 }
 
 // SetWorkspacePostInstall replaces the post-install script list for a

@@ -9,6 +9,8 @@ export namespace models {
     editor?: string;
     ai?: string;
     postInstall?: string[];
+    // repo name -> branch checked out on disk; absent when not cloned.
+    branches?: Record<string, string>;
   }
 
   export interface EditorDTO {
