@@ -69,6 +69,9 @@ type WorkspaceDTO struct {
 	Editor      string    `json:"editor,omitempty"`
 	AI          string    `json:"ai,omitempty"`
 	PostInstall []string  `json:"postInstall,omitempty"`
+	// Branches maps repo name to the branch checked out on disk. Repos
+	// that aren't cloned are absent.
+	Branches map[string]string `json:"branches,omitempty"`
 }
 
 type RepoDTO struct {
@@ -161,6 +164,10 @@ func (b *Bindings) ListWorkspaces() (map[string]WorkspaceDTO, error) {
 	if err != nil {
 		return nil, err
 	}
+	branches, err := actions.WorkspaceBranches(b.store)
+	if err != nil {
+		return nil, err
+	}
 	out := make(map[string]WorkspaceDTO, len(workspaces))
 	for name, profile := range workspaces {
 		out[name] = WorkspaceDTO{
@@ -169,6 +176,7 @@ func (b *Bindings) ListWorkspaces() (map[string]WorkspaceDTO, error) {
 			Editor:      profile.Editor,
 			AI:          profile.AI,
 			PostInstall: postInstall[name],
+			Branches:    branches[name],
 		}
 	}
 	return out, nil
