@@ -4,7 +4,7 @@
 // background. Hooks into Antd's Dropdown for the menu.
 
 import { MoreOutlined } from "@ant-design/icons";
-import { Avatar, Button, Dropdown } from "antd";
+import { Button, Dropdown } from "antd";
 import type { MenuProps } from "antd";
 import type { ReactNode } from "react";
 
@@ -91,13 +91,17 @@ export default function ToolboxListItem({
       <div className="flex items-center px-3 py-2 gap-3">
         {children}
 
-        <Avatar
-          shape="square"
-          size={32}
-          className={selected ? "!bg-emerald-600" : "!bg-zinc-700"}
+        {/* A plain box, not antd's Avatar: Avatar measures its content on
+            every render to scale text, which forces a layout per row and
+            made long lists slow to filter and refresh. */}
+        <div
+          className={[
+            "w-8 h-8 shrink-0 rounded-md flex items-center justify-center text-base text-zinc-100",
+            selected ? "bg-emerald-600" : "bg-zinc-700",
+          ].join(" ")}
         >
           {icon ?? null}
-        </Avatar>
+        </div>
 
         <div className="flex-1 min-w-0">
           {renderPrimary()}
