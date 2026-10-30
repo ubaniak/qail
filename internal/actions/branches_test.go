@@ -11,7 +11,7 @@ import (
 type staticStore struct{ cfg config.Config }
 
 func (s staticStore) Read() (config.Config, error) { return s.cfg, nil }
-func (s staticStore) Write(config.Config) error   { return nil }
+func (s staticStore) Write(config.Config) error    { return nil }
 
 func TestWorkspaceBranchesReadsHeadOfClonedRepos(t *testing.T) {
 	root := t.TempDir()
