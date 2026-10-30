@@ -7,6 +7,7 @@ import { ClockCircleOutlined, FolderOpenOutlined } from "@ant-design/icons";
 import { Alert, Tag } from "antd";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
+import { ContextHint } from "../../component/Hint/ContextHint";
 import ToolboxListItem from "../../component/Toolbox/ListItem";
 import type { MenuAction } from "../../component/Toolbox/ListItem";
 import { IndexableLayout, ScrollableLayout } from "../../layouts";
@@ -16,9 +17,8 @@ import { AddWorkspace } from "./add";
 import { EditWorkspace } from "./edit";
 import { RemoveWorkspace } from "./remove";
 
-// Hover text for a repo chip. A native title keeps the hover free: no
-// extra component per chip.
-const branchTitle = (branch?: string) =>
+// Right-click text for a repo chip, shown by the list's ContextHint.
+const branchHint = (branch?: string) =>
   branch ? `Branch: ${branch}` : "Not cloned";
 
 export const WorkspaceIndex = () => {
@@ -63,7 +63,7 @@ export const WorkspaceIndex = () => {
       );
     }
     return (
-      <div>
+      <ContextHint>
         {filtered.map(([name, ws]) => {
           const repos = ws.repos || [];
           const lastUsed = ws.lastUsed ? new Date(ws.lastUsed) : null;
@@ -178,7 +178,7 @@ export const WorkspaceIndex = () => {
                       {repos.map((r) => (
                         <span
                           key={r}
-                          title={branchTitle(ws.branches?.[r])}
+                          data-hint={branchHint(ws.branches?.[r])}
                           className="px-[7px] text-[10px] leading-4 rounded border border-zinc-700 bg-white/[0.04] text-zinc-300"
                         >
                           {r}
@@ -224,7 +224,7 @@ export const WorkspaceIndex = () => {
             />
           );
         })}
-      </div>
+      </ContextHint>
     );
   };
 
