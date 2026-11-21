@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -27,13 +28,15 @@ to qail workspaces and repos — and open it in the default browser. Pass a
 workspace (and optionally a repo) to open straight into that scope.
 
 The console reads workspaces from the qail HTTP API; if nothing is serving
---qail-url it starts ` + "`qail serve`" + ` itself. Install the console once with
-` + "`make console-install`" + ` (see ADR-0018).`,
+--qail-url it starts ` + "`qail serve`" + ` itself. The installers ship the console
+and its Node runtime; from a source checkout, install it once with
+` + "`make console-install`" + ` (see ADR-0018, ADR-0019).`,
 	Args: cobra.MaximumNArgs(2),
 	Run: func(_ *cobra.Command, args []string) {
 		self, _ := os.Executable()
 		m := console.New(console.Options{
-			Dir:           consoleDir(),
+			Dir:           consoleDir(self),
+			DataDir:       consoleDataDir(),
 			Port:          consolePort,
 			QailURL:       consoleQailURL,
 			QailBin:       self,
@@ -73,17 +76,26 @@ The console reads workspaces from the qail HTTP API; if nothing is serving
 	},
 }
 
-// consoleDir resolves the console install: $QAIL_CONSOLE_DIR, else
-// qailhome's ConsoleDir.
-func consoleDir() string {
-	if d := os.Getenv("QAIL_CONSOLE_DIR"); d != "" {
-		return d
-	}
+// consoleDir resolves the console install for the qail binary at self:
+// $QAIL_CONSOLE_DIR, the console bundled beside it, else qailhome's
+// ConsoleDir (see console.ResolveDir).
+func consoleDir(self string) string {
+	return console.ResolveDir(self, qailHome().ConsoleDir())
+}
+
+// consoleDataDir keeps chat threads in ~/.qail/console/data whichever
+// install runs, so they survive app updates and match `make
+// console-install`'s location.
+func consoleDataDir() string {
+	return filepath.Join(qailHome().ConsoleDir(), "data")
+}
+
+func qailHome() qailhome.Home {
 	h, err := qailhome.Default()
 	if err != nil {
 		log.Fatalf("qail home: %v", err)
 	}
-	return h.ConsoleDir()
+	return h
 }
 
 func init() {

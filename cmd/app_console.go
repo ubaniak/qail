@@ -59,7 +59,8 @@ func startEmbeddedAPI(s config.Store) (baseURL string, shutdown func()) {
 func newAppConsole(apiURL string) *console.Manager {
 	self, _ := os.Executable()
 	return console.New(console.Options{
-		Dir:     consoleDir(),
+		Dir:     consoleDir(self),
+		DataDir: consoleDataDir(),
 		QailURL: apiURL,
 		QailBin: self,
 		Log:     log.Writer(),

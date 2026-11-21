@@ -1,6 +1,6 @@
 # ADR-0018: Agent Console as a supervised Node sidecar
 
-**Status**: Accepted
+**Status**: Accepted. Installer packaging superseded by ADR-0019.
 
 ## Context
 

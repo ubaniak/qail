@@ -121,3 +121,84 @@ func freePort(t *testing.T) int {
 	p, _ := strconv.Atoi(ln.Addr().String()[len("127.0.0.1:"):])
 	return p
 }
+
+// installConsole fakes a runnable console in dir.
+func installConsole(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(dir, "node_modules"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "server.mjs"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestResolveDir(t *testing.T) {
+	t.Setenv("QAIL_CONSOLE_DIR", "")
+	resources := t.TempDir()
+	exe := filepath.Join(resources, "bin", "qail")
+	fallback := filepath.Join(t.TempDir(), "console")
+
+	// Nothing beside the binary: fall back to ~/.qail/console.
+	if got := ResolveDir(exe, fallback); got != fallback {
+		t.Errorf("no bundle: got %q, want %q", got, fallback)
+	}
+
+	// A bundled console beside resources/bin wins.
+	bundled := filepath.Join(resources, "console")
+	installConsole(t, bundled)
+	if got := ResolveDir(exe, fallback); got != bundled {
+		t.Errorf("bundle: got %q, want %q", got, bundled)
+	}
+
+	// Found through a symlinked CLI (macOS /usr/local/bin/qail).
+	if err := os.MkdirAll(filepath.Dir(exe), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(exe, nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "qail")
+	if err := os.Symlink(exe, link); err == nil {
+		if got := ResolveDir(link, fallback); got != bundled {
+			t.Errorf("symlink: got %q, want %q", got, bundled)
+		}
+	}
+
+	// The env override beats everything.
+	t.Setenv("QAIL_CONSOLE_DIR", "/elsewhere")
+	if got := ResolveDir(exe, fallback); got != "/elsewhere" {
+		t.Errorf("env: got %q", got)
+	}
+}
+
+func TestBundledNode(t *testing.T) {
+	dir := t.TempDir()
+	if got := BundledNode(dir, "linux"); got != "" {
+		t.Errorf("source install: got %q, want \"\"", got)
+	}
+	if BundledNode("", "linux") != "" {
+		t.Error("empty dir should have no bundled node")
+	}
+	for goos, exe := range map[string]string{"linux": "node", "windows": "node.exe"} {
+		p := filepath.Join(dir, "runtime", exe)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, nil, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if got := BundledNode(dir, goos); got != p {
+			t.Errorf("%s: got %q, want %q", goos, got, p)
+		}
+	}
+}
+
+func TestPathNodeDirKeepsBundledNodeOffPath(t *testing.T) {
+	if got := pathNodeDir("/app/resources/console/runtime/node", true); got != "" {
+		t.Errorf("bundled: got %q, want \"\"", got)
+	}
+	if got := pathNodeDir("/opt/homebrew/bin/node", false); got != "/opt/homebrew/bin" {
+		t.Errorf("system: got %q", got)
+	}
+}

@@ -22,6 +22,7 @@ Decisions that shape `qail`'s architecture. Numbered, append-only.
 | [0016](0016-http-api-layer.md) | HTTP API layer over the actions package | Accepted |
 | [0017](0017-electron-desktop-app.md) | Electron desktop app over a stdio RPC backend | Accepted |
 | [0018](0018-agent-console-sidecar.md) | Agent Console as a supervised Node sidecar | Accepted |
+| [0019](0019-bundle-agent-console.md) | Bundle the Agent Console and a Node runtime in the installers | Accepted |
 
 ## Format
 
