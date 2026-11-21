@@ -290,7 +290,9 @@ curl -X POST -d '{"name":"svc","url":"git@host:foo.git"}' \
 
 A browser UI for Claude Code agents, organised by qail workspace and repo. Pick a workspace to run agents across all its repos, or a repo to run them inside it with that repo's own `CLAUDE.md`, agents, skills and hooks. See [ADR-0018](docs/adr/0018-agent-console-sidecar.md).
 
-Install once (needs Node ≥ 22):
+The desktop installers (dmg, exe, deb, AppImage) include the console and its own Node runtime, so it works straight after install with nothing else to set up. The `qail` command that comes with the app uses the same bundled console.
+
+From a source checkout without the app, install it once instead (needs Node ≥ 22):
 
 ```sh
 make console-install        # → ~/.qail/console
@@ -308,7 +310,7 @@ The console runs on `127.0.0.1:4317` and reads workspaces from the qail HTTP API
 | Env | Purpose |
 |---|---|
 | `QAIL_CONSOLE_DIR` | Use a different console install (e.g. `./console` while developing) |
-| `QAIL_NODE` | Node binary to use when it isn't on the app's PATH |
+| `QAIL_NODE` | Node binary to use instead of the bundled one or the one on PATH |
 
 ## Data location
 
@@ -316,7 +318,7 @@ Everything lives under `~/.qail/` (override with `QAIL_HOME`):
 
 - `qail.db` — SQLite database (config, repos, workspaces)
 - `scripts/` — user scripts
-- `console/` — Agent Console install (`make console-install`), incl. its chat threads in `console/data/`
+- `console/data/` — Agent Console chat threads (also where `make console-install` puts a source install of the console)
 - `bin/` — the binary (if installed via the steps above)
 
 ## Architecture

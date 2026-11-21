@@ -3,7 +3,10 @@
 //
 // The console's agent runtime is the Claude Agent SDK, which ships for
 // TypeScript and Python only, so the console runs as a Node sidecar
-// (`node server.mjs`). This package locates that install, starts and stops
+// (`node server.mjs`). Installers ship it with its own Node runtime in the
+// app's resources (ADR-0019); `make console-install` puts a source install
+// in ~/.qail/console that uses the system Node. This package locates that
+// install, starts and stops
 // the process, waits for it to become healthy, and opens it in the user's
 // browser. The console reads workspaces and repos from qail's HTTP API
 // (internal/api), so it never touches the SQLite store directly.
@@ -33,7 +36,7 @@ import (
 const DefaultPort = 4317
 
 // ErrNotInstalled means the console files or its node_modules are missing.
-var ErrNotInstalled = errors.New("agent console is not installed (run `make console-install`)")
+var ErrNotInstalled = errors.New("agent console is not installed (reinstall qail, or run `make console-install` from a source checkout)")
 
 // ErrNoNode means no Node.js binary could be found.
 var ErrNoNode = errors.New("node not found (install Node ≥ 22 or set QAIL_NODE)")
@@ -45,8 +48,14 @@ type Runner interface {
 
 // Options configures a Manager. Zero values pick sensible defaults.
 type Options struct {
-	// Dir is the console install directory (contains server.mjs).
+	// Dir is the console install directory (contains server.mjs). See
+	// ResolveDir.
 	Dir string
+	// DataDir is where the console keeps its chat threads
+	// (AGENT_CONSOLE_DATA). A bundled console lives in the read-only app
+	// resources, so this must point outside Dir. "" = the console's default
+	// (Dir/data). An AGENT_CONSOLE_DATA already in the environment wins.
+	DataDir string
 	// Port is the console's loopback port. Default DefaultPort.
 	Port int
 	// QailURL is the qail HTTP API the console reads workspaces from.
@@ -57,7 +66,8 @@ type Options struct {
 	// AutostartQail lets the console spawn `qail serve`. The desktop app
 	// serves the API in-process, so it leaves this false.
 	AutostartQail bool
-	// Node is the node binary. "" = auto-detect (see FindNode).
+	// Node is the node binary. "" = $QAIL_NODE, else the runtime bundled in
+	// Dir (BundledNode), else the system Node (FindNode).
 	Node string
 	// Log receives the console's stdout/stderr. nil = discarded.
 	Log io.Writer
@@ -157,7 +167,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	if !m.Installed() {
 		return fmt.Errorf("%w: looked in %s", ErrNotInstalled, m.opts.Dir)
 	}
-	node, err := FindNode(m.opts.Node)
+	node, bundled, err := m.node()
 	if err != nil {
 		return err
 	}
@@ -176,8 +186,11 @@ func (m *Manager) Start(ctx context.Context) error {
 		"QAIL_AUTOSTART="+autostart,
 		// GUI apps on macOS start with a minimal PATH; the agent's tools
 		// (git, npm, go…) need the user's usual locations.
-		"PATH="+augmentPath(filepath.Dir(node), os.Getenv("PATH")),
+		"PATH="+augmentPath(pathNodeDir(node, bundled), os.Getenv("PATH")),
 	)
+	if m.opts.DataDir != "" && os.Getenv("AGENT_CONSOLE_DATA") == "" {
+		cmd.Env = append(cmd.Env, "AGENT_CONSOLE_DATA="+m.opts.DataDir)
+	}
 	if m.opts.QailBin != "" {
 		cmd.Env = append(cmd.Env, "QAIL_BIN="+m.opts.QailBin)
 	}
@@ -262,6 +275,68 @@ func (m *Manager) OpenBrowser(ctx context.Context, u string) error {
 		return fmt.Errorf("open browser: %s exited %d: %s", c.Name, res.ExitCode, strings.TrimSpace(string(res.Stderr)))
 	}
 	return nil
+}
+
+// node picks the runtime: Options.Node, $QAIL_NODE, the bundled runtime,
+// then the system Node. bundled reports the third case.
+func (m *Manager) node() (path string, bundled bool, err error) {
+	for _, c := range []string{m.opts.Node, os.Getenv("QAIL_NODE")} {
+		if c != "" && fileExists(c) {
+			return c, false, nil
+		}
+	}
+	if b := BundledNode(m.opts.Dir, m.opts.GOOS); b != "" {
+		return b, true, nil
+	}
+	p, err := FindNode("")
+	return p, false, err
+}
+
+// BundledNode returns the Node runtime shipped inside a bundled console
+// (Dir/runtime/node[.exe]), or "" when Dir is a source install.
+func BundledNode(dir, goos string) string {
+	exe := "node"
+	if goos == "windows" {
+		exe = "node.exe"
+	}
+	p := filepath.Join(dir, "runtime", exe)
+	if dir == "" || !fileExists(p) {
+		return ""
+	}
+	return p
+}
+
+// pathNodeDir is the directory to put first on the console's PATH. A
+// system Node's dir goes first so the agent's tools see the same node; the
+// bundled runtime stays off PATH so it never shadows the user's own Node
+// (and its npm) in their projects.
+func pathNodeDir(node string, bundled bool) string {
+	if bundled {
+		return ""
+	}
+	return filepath.Dir(node)
+}
+
+// ResolveDir picks the console install for a qail binary at exe:
+// $QAIL_CONSOLE_DIR, else a console installed next to the binary's
+// directory (exe/../../console — the app's resources/console beside
+// resources/bin/qail, or ~/.qail/console beside ~/.qail/bin/qail), else
+// fallback (qailhome's ConsoleDir, where `make console-install` puts it).
+func ResolveDir(exe, fallback string) string {
+	if d := os.Getenv("QAIL_CONSOLE_DIR"); d != "" {
+		return d
+	}
+	if exe != "" {
+		// The macOS CLI is a symlink into the app bundle.
+		if real, err := filepath.EvalSymlinks(exe); err == nil {
+			exe = real
+		}
+		d := filepath.Join(filepath.Dir(filepath.Dir(exe)), "console")
+		if (&Manager{opts: Options{Dir: d}}).Installed() {
+			return d
+		}
+	}
+	return fallback
 }
 
 // FindNode resolves the node binary: explicit, $QAIL_NODE, PATH, then the

@@ -62,6 +62,10 @@
       {
         "from": "../icon@2x.png",
         "to": "icon@2x.png"
+      },
+      {
+        "from": "../build/console/${os}-${arch}",
+        "to": "."
       }
     ],
     "icon": "../build/appicon.png",

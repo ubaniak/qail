@@ -223,6 +223,8 @@ async function consoleSubmenu() {
 
   const items = [];
   if (!status.installed) {
+    // Installers always ship the console (resources/console); only an
+    // unpacked dev build without `make console-install` lands here.
     items.push({ label: "Not installed — run `make console-install`", enabled: false });
     items.push({ type: "separator" });
   }

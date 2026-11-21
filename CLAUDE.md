@@ -32,7 +32,7 @@ Go CLI app using **Cobra** for commands and **GORM + SQLite** for persistence (`
 - `internal/color/` — Lipgloss color helpers.
 - `internal/app/` — `Bindings` (the desktop UI's method set) plus `rpc.go`, the stdio JSON-lines server behind the hidden `qail desktop-backend` command.
 - `frontend/` — React/Vite UI packaged as an Electron menubar app (`frontend/electron/`). Electron spawns `qail desktop-backend` and calls `Bindings` methods by name. `make app` runs it; `make installer` packages it.
-- `internal/console/` — Supervises the Agent Console Node sidecar (`console/`): find node, start/stop, health, open browser via the runner seam. Used by `qail console` and the Electron tray submenu (via `Bindings` console methods). See ADR-0018.
+- `internal/console/` — Supervises the Agent Console Node sidecar (`console/`): find node, start/stop, health, open browser via the runner seam. Used by `qail console` and the Electron tray submenu (via `Bindings` console methods). See ADR-0018. Installers bundle it with a pinned Node runtime as `resources/console` (`scripts/bundle-console.mjs`, `make console-bundle`); see ADR-0019.
 
 ### Data Flow Pattern
 

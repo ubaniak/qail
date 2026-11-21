@@ -25,12 +25,21 @@ app-dev: build
 test:
 	go test ./cmd/... ./internal/... .
 
-# Installers — electron-builder packages the frontend plus bin/qail
-# (as resources/bin/qail) into build/installers/. The Go binary links
-# SQLite via cgo, so build mac and linux installers on their target OS;
-# Windows can also be cross-built (see build-windows).
+# Installers — electron-builder packages the frontend, bin/qail (as
+# resources/bin/qail) and the Agent Console bundle (as resources/console,
+# see console-bundle) into build/installers/. The Go binary links SQLite
+# via cgo, so build mac and linux installers on their target OS; Windows
+# can also be cross-built (see build-windows).
 installer-mac: build frontend
+	$(MAKE) console-bundle CONSOLE_PLATFORM=darwin
 	cd frontend && npx electron-builder --mac
+
+# Apple silicon dmg from either Mac. Overwrites bin/qail with an arm64
+# build; run `make build` afterwards to get a host binary back.
+installer-mac-arm64: frontend
+	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o bin/qail .
+	$(MAKE) console-bundle CONSOLE_PLATFORM=darwin CONSOLE_ARCH=arm64
+	cd frontend && npx electron-builder --mac --arm64
 
 # The Windows installer needs bin/qail.exe. On Windows that's plain
 # `make build`; anywhere else it cross-compiles, and cgo then needs a
@@ -39,20 +48,32 @@ build-windows:
 	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 $(if $(filter Windows_NT,$(OS)),,CC=x86_64-w64-mingw32-gcc) go build -o bin/qail.exe .
 
 installer-windows: build-windows frontend
+	$(MAKE) console-bundle CONSOLE_PLATFORM=win32 CONSOLE_ARCH=x64
 	cd frontend && npx electron-builder --win --x64
 
 installer-linux: build frontend
+	$(MAKE) console-bundle CONSOLE_PLATFORM=linux
 	cd frontend && npx electron-builder --linux
 
 # Convenience: native installer for the current host OS.
-installer: build frontend
+installer: build frontend console-bundle
 	cd frontend && npx electron-builder
 
-.PHONY: build build-windows frontend app app-dev test console-install console-dev installer installer-mac installer-windows installer-linux
+.PHONY: build build-windows frontend app app-dev test console-install console-dev console-bundle installer installer-mac installer-mac-arm64 installer-windows installer-linux
 
-# --- Agent Console (ADR-0018) ------------------------------------------------
-# Installs the Node sidecar into ~/.qail/console (or $QAIL_HOME/console).
-# Chat threads in data/ survive reinstalls.
+# --- Agent Console (ADR-0018, ADR-0019) ---------------------------------------
+# Stages the console for one installer target into build/console/<os>-<arch>:
+# sources, production node_modules with the Claude Agent SDK's native CLI
+# for that target, and a pinned Node runtime. Needs node + npm on the build
+# host; defaults to the host platform/arch, and cross-targets work anywhere.
+CONSOLE_PLATFORM ?=
+CONSOLE_ARCH ?=
+console-bundle:
+	node scripts/bundle-console.mjs $(if $(CONSOLE_PLATFORM),--platform $(CONSOLE_PLATFORM)) $(if $(CONSOLE_ARCH),--arch $(CONSOLE_ARCH))
+
+# Source install for development without the app: the Node sidecar goes
+# into ~/.qail/console (or $QAIL_HOME/console) and runs on the system Node.
+# The installers don't need this. Chat threads in data/ survive reinstalls.
 QAIL_HOME ?= $(HOME)/.qail
 CONSOLE_DIR ?= $(QAIL_HOME)/console
 
