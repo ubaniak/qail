@@ -30,6 +30,7 @@ Go CLI app using **Cobra** for commands and **GORM + SQLite** for persistence (`
 - `internal/scripts/` — Manages bash scripts stored in `~/.qail/scripts/`.
 - `internal/clip/` — Clipboard helper for `cd` (copies path).
 - `internal/color/` — Lipgloss color helpers.
+- `internal/console/` — Supervises the Agent Console Node sidecar (`console/`): find node, start/stop, health, open browser via the runner seam. Used by `qail console` and the tray submenu (`cmd/app_console.go`). See ADR-0017.
 
 ### Data Flow Pattern
 

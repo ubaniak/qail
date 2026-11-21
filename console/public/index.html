@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Console</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo"><span></span><span></span><span></span></div>
+      <div>
+        <div class="brand-name">Agent Console</div>
+        <div class="brand-sub">Claude agents across qail workspaces</div>
+      </div>
+    </div>
+
+    <div id="qailStatus" class="qail-status"></div>
+    <div class="side-label">qail workspaces</div>
+    <nav id="wsTree" class="ws-tree"></nav>
+
+    <div class="side-foot">Local only · 127.0.0.1</div>
+  </aside>
+
+  <main class="main">
+    <section id="empty" class="empty">
+      <div class="empty-orb"></div>
+      <h1 id="emptyTitle">Pick a qail workspace</h1>
+      <p id="emptyText">Workspaces and repos come from qail. Choose a workspace to work across all its repos, or a repo to work inside it.</p>
+    </section>
+
+    <section id="projectView" class="hidden">
+      <header class="topbar">
+        <div>
+          <div class="crumbs" id="crumbs"></div>
+          <h1 id="projName"></h1>
+          <div class="path" id="projPath"></div>
+        </div>
+        <div class="topbar-right">
+          <span id="claudeMdBadge" class="pill"></span>
+          <button id="refreshBtn" class="icon-btn" title="Refresh">↻</button>
+          <button id="createBtn" class="primary-btn sm hidden" title="qail workspace create: clone missing repos + run post-install">Clone missing repos</button>
+        </div>
+      </header>
+
+      <div class="stats" id="stats"></div>
+
+      <div class="tabs">
+        <button class="tab" data-tab="repos" id="reposTabBtn">Repos</button>
+        <button class="tab active" data-tab="agents">Agents</button>
+        <button class="tab" data-tab="skills">Skills</button>
+        <button class="tab" data-tab="runs">/ship runs</button>
+      </div>
+
+      <div id="tab-repos" class="tab-body hidden"><div id="repoGrid" class="repo-grid"></div></div>
+      <div id="missing" class="missing hidden"></div>
+      <div id="tab-agents" class="tab-body"><div id="agentGrid" class="grid"></div></div>
+      <div id="tab-skills" class="tab-body hidden"><div id="skillList" class="skill-list"></div></div>
+      <div id="tab-runs" class="tab-body hidden">
+        <div class="runs-layout">
+          <div id="runList" class="run-list"></div>
+          <div id="runViewer" class="run-viewer"><div class="muted pad">Select a run.</div></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside id="chat" class="chat hidden">
+    <header class="chat-head">
+      <div class="chat-id">
+        <div id="chatAvatar" class="avatar"></div>
+        <div>
+          <div class="chat-name" id="chatName"></div>
+          <div class="chat-meta" id="chatMeta"></div>
+        </div>
+      </div>
+      <div class="chat-actions">
+        <button id="newThreadBtn" class="ghost-btn sm" title="Start a fresh session">New thread</button>
+        <button id="closeChat" class="icon-btn">✕</button>
+      </div>
+    </header>
+    <div class="chat-skills" id="chatSkills"></div>
+    <div class="messages" id="messages"></div>
+    <form id="composer" class="composer">
+      <textarea id="input" rows="3" placeholder="Message this agent… (Enter to send, Shift+Enter for newline)"></textarea>
+      <div class="composer-row">
+        <select id="mode" title="Permission mode">
+          <option value="default">Ask before changes</option>
+          <option value="acceptEdits">Auto-accept edits</option>
+          <option value="plan">Plan only (read-only)</option>
+        </select>
+        <div class="spacer"></div>
+        <button type="button" id="stopBtn" class="ghost-btn sm hidden">Stop</button>
+        <button type="submit" id="sendBtn" class="primary-btn sm">Send</button>
+      </div>
+    </form>
+  </aside>
+</div>
+<script src="/app.js" type="module"></script>
+</body>
+</html>

@@ -65,7 +65,8 @@ app appear immediately to qail commands in any terminal.`,
 			},
 		})
 
-		bindings := qailapp.New(mustStore(), app)
+		store := mustStore()
+		bindings := qailapp.New(store, app)
 		app.RegisterService(application.NewServiceWithOptions(
 			bindings,
 			application.ServiceOptions{Name: "Bindings"},
@@ -113,11 +114,30 @@ app appear immediately to qail commands in any terminal.`,
 		// tray icon; right-click still shows the menu below.
 		tray.AttachWindow(win).WindowOffset(5)
 
-		menu := app.NewMenu()
-		menu.Add("Show qail").OnClick(func(*application.Context) { win.Show() })
-		menu.AddSeparator()
-		menu.Add("Quit").OnClick(func(*application.Context) { app.Quit() })
-		tray.SetMenu(menu)
+		// Agent Console (ADR-0017): serve the qail API in-process so the
+		// Node sidecar can read workspaces, and supervise the sidecar's
+		// lifetime from here.
+		apiURL, stopAPI := startEmbeddedAPI(store)
+		agentConsole := newAppConsole(apiURL)
+
+		var buildMenu func() *application.Menu
+		rebuildMenu := func() { tray.SetMenu(buildMenu()) }
+		buildMenu = func() *application.Menu {
+			menu := app.NewMenu()
+			menu.Add("Show qail").OnClick(func(*application.Context) { win.Show() })
+			menu.AddSeparator()
+			addConsoleSubmenu(menu, store, agentConsole, rebuildMenu, func(err error) {
+				app.Dialog.Error().SetTitle("Agent Console").SetMessage(err.Error()).Show()
+			})
+			menu.AddSeparator()
+			menu.Add("Quit").OnClick(func(*application.Context) {
+				agentConsole.Stop()
+				stopAPI()
+				app.Quit()
+			})
+			return menu
+		}
+		tray.SetMenu(buildMenu())
 
 		// Global hotkey ⌃⌥Q toggles the tray window. Carbon fires the
 		// channel on the main run loop; the goroutine just dispatches to
@@ -138,7 +158,10 @@ app appear immediately to qail commands in any terminal.`,
 			}()
 		}
 
-		if err := app.Run(); err != nil {
+		err := app.Run()
+		agentConsole.Stop() // also covers quits that bypass the tray menu
+		stopAPI()
+		if err != nil {
 			log.Fatal(err)
 		}
 	},

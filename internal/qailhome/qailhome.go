@@ -91,6 +91,11 @@ func (h Home) RepoScriptsDir() string {
 	return filepath.Join(h.ScriptsDir(), "repo")
 }
 
+// ConsoleDir is where the Agent Console (Node sidecar, ADR-0017) is
+// installed by `make console-install`. Not created by Default(): its
+// absence is how callers detect "not installed".
+func (h Home) ConsoleDir() string { return filepath.Join(h.root, "console") }
+
 // LegacyJSONPath returns the on-disk path of the pre-SQLite config.json,
 // used only by the one-shot `qail config convert` migration.
 func (h Home) LegacyJSONPath() string { return filepath.Join(h.root, "config.json") }
