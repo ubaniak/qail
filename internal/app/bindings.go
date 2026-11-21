@@ -17,6 +17,7 @@ import (
 
 	"github.com/ubaniak/qail/internal/actions"
 	"github.com/ubaniak/qail/internal/config"
+	"github.com/ubaniak/qail/internal/console"
 	"github.com/ubaniak/qail/internal/scripts"
 	"github.com/ubaniak/qail/internal/tmux"
 )
@@ -29,9 +30,10 @@ type Emitter func(name string, data any)
 // method is callable by name over the RPC bridge (see rpc.go), so the
 // method set IS the API: keep frontend/src/api/bindings.ts in sync.
 type Bindings struct {
-	store  config.Store
-	emitFn Emitter
-	ctx    context.Context
+	store   config.Store
+	emitFn  Emitter
+	ctx     context.Context
+	console *console.Manager // nil when the Agent Console isn't wired up
 }
 
 // New constructs a Bindings. ctx bounds every long-running call (it is

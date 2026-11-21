@@ -48,4 +48,19 @@ installer-linux: build frontend
 installer: build frontend
 	cd frontend && npx electron-builder
 
-.PHONY: build build-windows frontend app app-dev test installer installer-mac installer-windows installer-linux
+.PHONY: build build-windows frontend app app-dev test console-install console-dev installer installer-mac installer-windows installer-linux
+
+# --- Agent Console (ADR-0018) ------------------------------------------------
+# Installs the Node sidecar into ~/.qail/console (or $QAIL_HOME/console).
+# Chat threads in data/ survive reinstalls.
+QAIL_HOME ?= $(HOME)/.qail
+CONSOLE_DIR ?= $(QAIL_HOME)/console
+
+console-install:
+	mkdir -p $(CONSOLE_DIR)
+	rsync -a --delete --exclude node_modules --exclude data console/ $(CONSOLE_DIR)/
+	cd $(CONSOLE_DIR) && npm ci --omit=dev
+	@echo "Agent Console installed in $(CONSOLE_DIR) — run 'qail console' or use the tray menu."
+
+console-dev:
+	cd console && npm install && QAIL_AUTOSTART=0 node server.mjs

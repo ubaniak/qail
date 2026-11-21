@@ -30,8 +30,19 @@ Not meant to be run by hand.`,
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
 
-		srv := qailapp.NewServer(ctx, mustStore(), proto)
-		if err := srv.Serve(os.Stdin); err != nil {
+		store := mustStore()
+
+		// Agent Console (ADR-0018): serve the qail API in-process so the
+		// Node sidecar can read workspaces. The tray drives the sidecar
+		// through Bindings; it is stopped when Electron closes our stdin.
+		apiURL, stopAPI := startEmbeddedAPI(store)
+		agentConsole := newAppConsole(apiURL)
+
+		srv := qailapp.NewServer(ctx, store, proto, qailapp.WithConsole(agentConsole))
+		err := srv.Serve(os.Stdin)
+		agentConsole.Stop()
+		stopAPI()
+		if err != nil {
 			log.Fatalf("desktop-backend: %v", err)
 		}
 	},
