@@ -91,9 +91,11 @@ class Backend {
     this.stopping = true;
     if (this.child) {
       // Closing stdin lets the Go side drain in-flight calls and exit.
+      // It may also be stopping the Agent Console sidecar, which can take
+      // up to 3s on its own, so allow a little longer than that.
       this.child.stdin.end();
       const child = this.child;
-      setTimeout(() => child.kill(), 3000).unref();
+      setTimeout(() => child.kill(), 5000).unref();
     }
   }
 }

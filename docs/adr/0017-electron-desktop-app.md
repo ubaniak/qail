@@ -1,4 +1,4 @@
-# ADR-0017: Electron desktop app over a stdio RPC backend
+# ADR-0018: Electron desktop app over a stdio RPC backend
 
 **Status**: Accepted
 

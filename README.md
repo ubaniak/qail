@@ -18,6 +18,7 @@ Group git repos into a workspace, clone them together, open the whole set in you
 - [Example: microservice workspace](#example-microservice-workspace)
 - [Commands](#commands)
 - [HTTP API](#http-api)
+- [Agent Console](#agent-console)
 - [Data location](#data-location)
 - [Architecture](#architecture)
 - [Development](#development)
@@ -285,12 +286,37 @@ curl -X POST -d '{"name":"svc","url":"git@host:foo.git"}' \
   http://127.0.0.1:8765/api/repos
 ```
 
+## Agent Console
+
+A browser UI for Claude Code agents, organised by qail workspace and repo. Pick a workspace to run agents across all its repos, or a repo to run them inside it with that repo's own `CLAUDE.md`, agents, skills and hooks. See [ADR-0018](docs/adr/0018-agent-console-sidecar.md).
+
+Install once (needs Node ≥ 22):
+
+```sh
+make console-install        # → ~/.qail/console
+```
+
+Open it:
+
+| From | How |
+|---|---|
+| Menubar app | Tray menu → **Agent Console** → *Open*, or a workspace → *Whole workspace* / a repo |
+| CLI | `qail console` · `qail console payments` · `qail console payments payments-api` |
+
+The console runs on `127.0.0.1:4317` and reads workspaces from the qail HTTP API (the app serves it in-process; the CLI starts `qail serve` if needed). Auth uses your Claude Code login or `ANTHROPIC_API_KEY`.
+
+| Env | Purpose |
+|---|---|
+| `QAIL_CONSOLE_DIR` | Use a different console install (e.g. `./console` while developing) |
+| `QAIL_NODE` | Node binary to use when it isn't on the app's PATH |
+
 ## Data location
 
 Everything lives under `~/.qail/` (override with `QAIL_HOME`):
 
 - `qail.db` — SQLite database (config, repos, workspaces)
 - `scripts/` — user scripts
+- `console/` — Agent Console install (`make console-install`), incl. its chat threads in `console/data/`
 - `bin/` — the binary (if installed via the steps above)
 
 ## Architecture

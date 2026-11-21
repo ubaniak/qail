@@ -162,23 +162,92 @@ function createTray() {
   if (icon.isEmpty()) tray.setTitle?.("Q");
   tray.setToolTip("qail");
 
-  const menu = Menu.buildFromTemplate([
+  // On macOS/Windows left-click toggles and right-click opens the menu,
+  // rebuilt each time so the Agent Console submenu lists current
+  // workspaces. Linux trays generally don't deliver click events, so the
+  // menu is the only entry point there; it is refreshed after console
+  // actions and from "Refresh workspaces".
+  if (process.platform === "linux") {
+    refreshTrayMenu();
+  } else {
+    tray.on("click", toggleWindow);
+    tray.on("right-click", async () => tray.popUpContextMenu(await buildTrayMenu()));
+  }
+}
+
+function refreshTrayMenu() {
+  if (process.platform !== "linux") return;
+  buildTrayMenu().then((menu) => tray?.setContextMenu(menu));
+}
+
+async function buildTrayMenu() {
+  return Menu.buildFromTemplate([
     { label: "Show qail", click: showWindow },
     ...(cli.supported()
       ? [{ label: "Install Command Line Tool…", click: () => cli.install(bundledBinary()) }]
       : []),
     { type: "separator" },
+    { label: "Agent Console", submenu: await consoleSubmenu() },
+    { type: "separator" },
     { label: "Quit", click: () => app.quit() },
   ]);
-  // On macOS/Windows left-click toggles and right-click opens the menu.
-  // Linux trays generally don't deliver click events, so the menu is the
-  // only entry point there.
-  if (process.platform === "linux") {
-    tray.setContextMenu(menu);
-  } else {
-    tray.on("click", toggleWindow);
-    tray.on("right-click", () => tray.popUpContextMenu(menu));
+}
+
+// Agent Console (ADR-0018) submenu:
+//
+//   Open Agent Console
+//   ───────────
+//   <workspace> ▸ Whole workspace / ─── / <repo> …
+//   ───────────
+//   Refresh workspaces
+//   Stop Agent Console
+//
+// The Go backend supervises the Node sidecar; this only asks it to.
+async function consoleSubmenu() {
+  let status = { installed: false, running: false, workspaces: [] };
+  try {
+    status = await backend.call("ConsoleStatus", []);
+  } catch (err) {
+    console.error("agent console menu:", err);
   }
+
+  const run = (method, args) => async () => {
+    try {
+      await backend.call(method, args);
+    } catch (err) {
+      dialog.showErrorBox("Agent Console", err instanceof Error ? err.message : String(err));
+    }
+    refreshTrayMenu();
+  };
+  const open = (ws, repo) => run("OpenConsole", [ws, repo]);
+
+  const items = [];
+  if (!status.installed) {
+    items.push({ label: "Not installed — run `make console-install`", enabled: false });
+    items.push({ type: "separator" });
+  }
+  items.push({ label: "Open Agent Console", click: open("", "") });
+
+  // Already most recently used first, matching the qail window.
+  const workspaces = status.workspaces || [];
+  if (workspaces.length > 0) {
+    items.push({ type: "separator" });
+    for (const { name, repos = [] } of workspaces) {
+      items.push({
+        label: name,
+        submenu: [
+          { label: "Whole workspace", click: open(name, "") },
+          ...(repos.length > 0 ? [{ type: "separator" }] : []),
+          ...repos.map((repo) => ({ label: repo, click: open(name, repo) })),
+        ],
+      });
+    }
+  }
+
+  items.push({ type: "separator" });
+  items.push({ label: "Refresh workspaces", click: refreshTrayMenu });
+  items.push({ label: "Stop Agent Console", enabled: status.running, click: run("StopConsole", []) });
+  return items;
 }
 
 function registerIpc() {

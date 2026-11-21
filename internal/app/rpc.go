@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/ubaniak/qail/internal/config"
+	"github.com/ubaniak/qail/internal/console"
 )
 
 type rpcRequest struct {
@@ -52,11 +53,23 @@ type Server struct {
 	b   *Bindings
 }
 
+// ServerOption configures the Bindings behind a Server. Options are not
+// Bindings methods, so they can't be reached over the RPC bridge.
+type ServerOption func(*Bindings)
+
+// WithConsole lets the UI drive the Agent Console through m (ADR-0018).
+func WithConsole(m *console.Manager) ServerOption {
+	return func(b *Bindings) { b.console = m }
+}
+
 // NewServer wires a Bindings to out: responses and events are both
 // written there, one JSON document per line.
-func NewServer(ctx context.Context, s config.Store, out io.Writer) *Server {
+func NewServer(ctx context.Context, s config.Store, out io.Writer, opts ...ServerOption) *Server {
 	srv := &Server{enc: json.NewEncoder(out)}
 	srv.b = New(ctx, s, srv.Emit)
+	for _, o := range opts {
+		o(srv.b)
+	}
 	return srv
 }
 
