@@ -1,6 +1,6 @@
 # ADR-0018: Agent Console as a supervised Node sidecar
 
-**Status**: Accepted. Installer packaging superseded by ADR-0019.
+**Status**: Superseded by ADR-0020 (the console now runs inside the qail binary). Its scope model, UI and tray menu still stand.
 
 ## Context
 

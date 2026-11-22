@@ -28,7 +28,7 @@ func TestConsoleStatusListsWorkspacesByLastUsed(t *testing.T) {
 	if err := json.Unmarshal(got[1]["result"], &st); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if st.Installed || st.Running {
+	if st.ClaudeFound || st.Running {
 		t.Fatalf("no console wired, got %+v", st)
 	}
 	if len(st.Workspaces) != 2 || st.Workspaces[0].Name != "new" || len(st.Workspaces[0].Repos) != 2 {

@@ -91,9 +91,9 @@ func (h Home) RepoScriptsDir() string {
 	return filepath.Join(h.ScriptsDir(), "repo")
 }
 
-// ConsoleDir is where the Agent Console (Node sidecar, ADR-0018) is
-// installed by `make console-install`. Not created by Default(): its
-// absence is how callers detect "not installed".
+// ConsoleDir holds the Agent Console's own data (ADR-0020): chat threads
+// in data/store.json. Not created by Default(); the console creates it on
+// first save.
 func (h Home) ConsoleDir() string { return filepath.Join(h.root, "console") }
 
 // LegacyJSONPath returns the on-disk path of the pre-SQLite config.json,

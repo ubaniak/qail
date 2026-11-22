@@ -1,6 +1,6 @@
 # ADR-0019: Bundle the Agent Console and a Node runtime in the installers
 
-**Status**: Accepted
+**Status**: Superseded by ADR-0020 (no Node or bundled Claude Code to ship)
 
 ## Context
 

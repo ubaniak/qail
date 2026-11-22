@@ -8,16 +8,17 @@ import (
 	"github.com/ubaniak/qail/internal/console"
 )
 
-// Agent Console (ADR-0018). The Electron tray builds its "Agent Console"
-// submenu from ConsoleStatus, and drives the sidecar
+// Agent Console (ADR-0018, ADR-0020). The Electron tray builds its "Agent
+// Console" submenu from ConsoleStatus, and drives the in-process console
 // through OpenConsole and StopConsole.
 
 // ConsoleStatusDTO tells the tray what to show.
 type ConsoleStatusDTO struct {
-	// Installed is false until `make console-install` has run.
-	Installed bool `json:"installed"`
-	// Running is true while this backend supervises a console process.
-	// A console started elsewhere (e.g. `qail console`) is not counted.
+	// ClaudeFound is false when the Claude Code CLI can't be found; the
+	// console still opens, but agents can't run.
+	ClaudeFound bool `json:"claudeFound"`
+	// Running is true while this backend serves the console. A console
+	// served elsewhere (e.g. `qail console`) is not counted.
 	Running bool `json:"running"`
 	// Workspaces to scope the console to, most recently used first. It
 	// skips ListWorkspaces' branch lookup so the tray menu opens fast.
@@ -31,11 +32,11 @@ type ConsoleWorkspaceDTO struct {
 
 var errNoConsole = errors.New("agent console is not available in this backend")
 
-// ConsoleStatus reports whether the console is installed and running.
+// ConsoleStatus reports whether claude is installed and the console running.
 func (b *Bindings) ConsoleStatus() (ConsoleStatusDTO, error) {
 	var out ConsoleStatusDTO
 	if b.console != nil {
-		out.Installed, out.Running = b.console.Installed(), b.console.Running()
+		out.ClaudeFound, out.Running = b.console.ClaudeFound(), b.console.Running()
 	}
 	workspaces, _, err := actions.ListWorkspaces(b.store)
 	if err != nil {
@@ -60,7 +61,7 @@ func (b *Bindings) OpenConsole(workspace, repo string) error {
 	return b.console.Open(b.ctx, console.ScopePath(workspace, repo))
 }
 
-// StopConsole stops the console process this backend started.
+// StopConsole stops the console this backend serves.
 func (b *Bindings) StopConsole() error {
 	if b.console != nil {
 		b.console.Stop()

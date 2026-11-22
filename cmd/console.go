@@ -3,21 +3,20 @@ package cmd
 import (
 	"context"
 	"log"
-	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
 	"github.com/spf13/cobra"
 
+	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/console"
 	"github.com/ubaniak/qail/internal/qailhome"
 )
 
 var (
-	consolePort    int
-	consoleQailURL string
-	consoleNoOpen  bool
+	consolePort   int
+	consoleNoOpen bool
 )
 
 var consoleCmd = &cobra.Command{
@@ -27,22 +26,13 @@ var consoleCmd = &cobra.Command{
 to qail workspaces and repos — and open it in the default browser. Pass a
 workspace (and optionally a repo) to open straight into that scope.
 
-The console reads workspaces from the qail HTTP API; if nothing is serving
---qail-url it starts ` + "`qail serve`" + ` itself. The installers ship the console
-and its Node runtime; from a source checkout, install it once with
-` + "`make console-install`" + ` (see ADR-0018, ADR-0019).`,
+The console is served by this qail process on 127.0.0.1 and runs agents with
+your installed Claude Code CLI (` + "`claude`" + `; set QAIL_CLAUDE to pick another).
+If the desktop app already serves the console, this just opens it. See
+ADR-0020.`,
 	Args: cobra.MaximumNArgs(2),
 	Run: func(_ *cobra.Command, args []string) {
-		self, _ := os.Executable()
-		m := console.New(console.Options{
-			Dir:           consoleDir(self),
-			DataDir:       consoleDataDir(),
-			Port:          consolePort,
-			QailURL:       consoleQailURL,
-			QailBin:       self,
-			AutostartQail: true,
-			Log:           os.Stderr,
-		})
+		m := newConsole(mustStore(), consolePort)
 
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
@@ -64,11 +54,14 @@ and its Node runtime; from a source checkout, install it once with
 			}
 		}
 
-		// Someone else (e.g. the menubar app) already runs the console:
-		// nothing for this process to supervise.
+		// Someone else (e.g. the menubar app) already serves the console:
+		// nothing for this process to keep running.
 		if !m.Running() {
 			log.Printf("agent console already running at %s", url)
 			return
+		}
+		if !m.ClaudeFound() {
+			log.Printf("warning: %v", console.ErrNoClaude)
 		}
 		log.Printf("agent console at %s (Ctrl-C to stop)", url)
 		<-ctx.Done()
@@ -76,18 +69,15 @@ and its Node runtime; from a source checkout, install it once with
 	},
 }
 
-// consoleDir resolves the console install for the qail binary at self:
-// $QAIL_CONSOLE_DIR, the console bundled beside it, else qailhome's
-// ConsoleDir (see console.ResolveDir).
-func consoleDir(self string) string {
-	return console.ResolveDir(self, qailHome().ConsoleDir())
-}
-
-// consoleDataDir keeps chat threads in ~/.qail/console/data whichever
-// install runs, so they survive app updates and match `make
-// console-install`'s location.
-func consoleDataDir() string {
-	return filepath.Join(qailHome().ConsoleDir(), "data")
+// newConsole builds the Agent Console for this process. Chat threads live
+// in ~/.qail/console/data, where earlier (Node) releases kept them too.
+func newConsole(s config.Store, port int) *console.Manager {
+	return console.New(console.Options{
+		Store:   s,
+		DataDir: filepath.Join(qailHome().ConsoleDir(), "data"),
+		Port:    port,
+		Log:     log.Writer(),
+	})
 }
 
 func qailHome() qailhome.Home {
@@ -100,7 +90,6 @@ func qailHome() qailhome.Home {
 
 func init() {
 	consoleCmd.Flags().IntVar(&consolePort, "port", console.DefaultPort, "console port (loopback only)")
-	consoleCmd.Flags().StringVar(&consoleQailURL, "qail-url", "http://127.0.0.1:8765", "qail HTTP API the console reads workspaces from")
 	consoleCmd.Flags().BoolVar(&consoleNoOpen, "no-open", false, "don't open the browser")
 	rootCmd.AddCommand(consoleCmd)
 }

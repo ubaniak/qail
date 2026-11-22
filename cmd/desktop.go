@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	qailapp "github.com/ubaniak/qail/internal/app"
+	"github.com/ubaniak/qail/internal/console"
 )
 
 var desktopBackendCmd = &cobra.Command{
@@ -32,16 +33,13 @@ Not meant to be run by hand.`,
 
 		store := mustStore()
 
-		// Agent Console (ADR-0018): serve the qail API in-process so the
-		// Node sidecar can read workspaces. The tray drives the sidecar
-		// through Bindings; it is stopped when Electron closes our stdin.
-		apiURL, stopAPI := startEmbeddedAPI(store)
-		agentConsole := newAppConsole(apiURL)
+		// Agent Console (ADR-0020): served in-process on demand. The tray
+		// drives it through Bindings; it stops when Electron closes our stdin.
+		agentConsole := newConsole(store, console.DefaultPort)
 
 		srv := qailapp.NewServer(ctx, store, proto, qailapp.WithConsole(agentConsole))
 		err := srv.Serve(os.Stdin)
 		agentConsole.Stop()
-		stopAPI()
 		if err != nil {
 			log.Fatalf("desktop-backend: %v", err)
 		}
