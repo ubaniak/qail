@@ -193,7 +193,7 @@ async function buildTrayMenu() {
   ]);
 }
 
-// Agent Console (ADR-0018) submenu:
+// Agent Console (ADR-0018, ADR-0020) submenu:
 //
 //   Open Agent Console
 //   ───────────
@@ -202,9 +202,9 @@ async function buildTrayMenu() {
 //   Refresh workspaces
 //   Stop Agent Console
 //
-// The Go backend supervises the Node sidecar; this only asks it to.
+// The Go backend serves the console in-process (ADR-0020); this only asks it to.
 async function consoleSubmenu() {
-  let status = { installed: false, running: false, workspaces: [] };
+  let status = { claudeFound: true, running: false, workspaces: [] };
   try {
     status = await backend.call("ConsoleStatus", []);
   } catch (err) {
@@ -222,10 +222,9 @@ async function consoleSubmenu() {
   const open = (ws, repo) => run("OpenConsole", [ws, repo]);
 
   const items = [];
-  if (!status.installed) {
-    // Installers always ship the console (resources/console); only an
-    // unpacked dev build without `make console-install` lands here.
-    items.push({ label: "Not installed — run `make console-install`", enabled: false });
+  if (!status.claudeFound) {
+    // The console still opens and explains; agents need Claude Code.
+    items.push({ label: "Claude Code not found — install it to run agents", enabled: false });
     items.push({ type: "separator" });
   }
   items.push({ label: "Open Agent Console", click: open("", "") });

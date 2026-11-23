@@ -60,15 +60,17 @@ async function loadWorkspaces(fresh) {
   } catch (e) {
     state.model = null;
     $("#qailStatus").className = "qail-status bad";
-    $("#qailStatus").innerHTML = `<span class="dot"></span><span>${esc(e.message)}<br/>Run <code>qail serve</code></span>`;
+    $("#qailStatus").innerHTML = `<span class="dot"></span><span>${esc(e.message)}</span>`;
     $("#wsTree").innerHTML = "";
-    $("#emptyTitle").textContent = "qail isn't reachable";
-    $("#emptyText").innerHTML = `Start it with <code>qail serve</code> (or put the qail binary in <code>~/.qail/bin</code> and the console starts it for you).`;
+    $("#emptyTitle").textContent = "Can't read qail's workspaces";
+    $("#emptyText").innerHTML = esc(e.message);
     return;
   }
-  const q = state.model.qail;
-  $("#qailStatus").className = "qail-status ok";
-  $("#qailStatus").innerHTML = `<span class="dot"></span><span>qail ${q.spawned ? "started" : "connected"} · root <code>${esc(state.model.root)}</code></span>`;
+  const c = state.model.claude || {};
+  $("#qailStatus").className = `qail-status ${c.ok ? "ok" : "bad"}`;
+  $("#qailStatus").innerHTML = c.ok
+    ? `<span class="dot"></span><span>root <code>${esc(state.model.root)}</code><br/>claude <code>${esc(c.path)}</code></span>`
+    : `<span class="dot"></span><span>${esc(c.error || "claude CLI not found")}<br/>Agents need <a href="https://docs.anthropic.com/en/docs/claude-code" target="_blank" rel="noopener">Claude Code</a> installed.</span>`;
   if (!state.ws && state.model.workspaces[0]) state.open.add(state.model.workspaces[0].name);
   renderTree();
   if (!state.model.workspaces.length) { $("#emptyTitle").textContent = "No qail workspaces yet"; $("#emptyText").innerHTML = "Create one with <code>qail workspace add</code>."; }

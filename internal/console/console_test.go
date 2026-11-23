@@ -2,14 +2,16 @@ package console
 
 import (
 	"context"
-	"errors"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/runner"
 )
 
@@ -54,14 +56,6 @@ func TestOpenBrowserNonZeroExit(t *testing.T) {
 	}
 }
 
-func TestStartNotInstalled(t *testing.T) {
-	m := New(Options{Dir: t.TempDir(), Port: freePort(t)})
-	err := m.Start(context.Background())
-	if !errors.Is(err, ErrNotInstalled) {
-		t.Fatalf("got %v, want ErrNotInstalled", err)
-	}
-}
-
 func TestStartReusesHealthyConsole(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -72,26 +66,36 @@ func TestStartReusesHealthyConsole(t *testing.T) {
 	defer srv.Close()
 
 	port := ln.Addr().(*net.TCPAddr).Port
-	// Not installed, but something healthy already owns the port: Start is a no-op.
-	m := New(Options{Dir: t.TempDir(), Port: port})
+	// Something healthy already owns the port: Start is a no-op.
+	m := New(Options{Store: config.NewMemoryStore(), Port: port})
 	if err := m.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	if m.Running() {
-		t.Fatal("Manager should not own a process it didn't start")
+		t.Fatal("Manager should not own a console it didn't start")
 	}
 }
 
-func TestInstalled(t *testing.T) {
-	dir := t.TempDir()
-	m := New(Options{Dir: dir})
-	if m.Installed() {
-		t.Fatal("empty dir reported installed")
+func TestStartServesAndStops(t *testing.T) {
+	m := New(Options{Store: config.NewMemoryStore(), Port: freePort(t), DataDir: t.TempDir()})
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
 	}
-	os.WriteFile(filepath.Join(dir, "server.mjs"), []byte(""), 0o644)
-	os.Mkdir(filepath.Join(dir, "node_modules"), 0o755)
-	if !m.Installed() {
-		t.Fatal("expected installed")
+	if !m.Running() || !m.Healthy(context.Background()) {
+		t.Fatal("console not serving after Start")
+	}
+	res, err := http.Get(m.URL("/"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	if !strings.Contains(string(body), "Agent Console") {
+		t.Fatalf("index not embedded: %.200s", body)
+	}
+	m.Stop()
+	if m.Running() || m.Healthy(context.Background()) {
+		t.Fatal("console still serving after Stop")
 	}
 }
 
@@ -101,13 +105,13 @@ func TestVersionLess(t *testing.T) {
 	}
 }
 
-func TestNvmNodesNewestFirst(t *testing.T) {
+func TestNvmBinsNewestFirst(t *testing.T) {
 	dir := t.TempDir()
 	for _, v := range []string{"v18.20.0", "v22.9.0", "v22.10.1"} {
 		os.MkdirAll(filepath.Join(dir, v, "bin"), 0o755)
 	}
-	got := nvmNodes(dir)
-	if len(got) != 3 || filepath.Base(filepath.Dir(filepath.Dir(got[0]))) != "v22.10.1" {
+	got := nvmBins(dir)
+	if len(got) != 3 || filepath.Base(filepath.Dir(got[0])) != "v22.10.1" {
 		t.Fatalf("got %v", got)
 	}
 }
@@ -122,83 +126,3 @@ func freePort(t *testing.T) int {
 	return p
 }
 
-// installConsole fakes a runnable console in dir.
-func installConsole(t *testing.T, dir string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Join(dir, "node_modules"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "server.mjs"), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestResolveDir(t *testing.T) {
-	t.Setenv("QAIL_CONSOLE_DIR", "")
-	resources := t.TempDir()
-	exe := filepath.Join(resources, "bin", "qail")
-	fallback := filepath.Join(t.TempDir(), "console")
-
-	// Nothing beside the binary: fall back to ~/.qail/console.
-	if got := ResolveDir(exe, fallback); got != fallback {
-		t.Errorf("no bundle: got %q, want %q", got, fallback)
-	}
-
-	// A bundled console beside resources/bin wins.
-	bundled := filepath.Join(resources, "console")
-	installConsole(t, bundled)
-	if got := ResolveDir(exe, fallback); got != bundled {
-		t.Errorf("bundle: got %q, want %q", got, bundled)
-	}
-
-	// Found through a symlinked CLI (macOS /usr/local/bin/qail).
-	if err := os.MkdirAll(filepath.Dir(exe), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(exe, nil, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	link := filepath.Join(t.TempDir(), "qail")
-	if err := os.Symlink(exe, link); err == nil {
-		if got := ResolveDir(link, fallback); got != bundled {
-			t.Errorf("symlink: got %q, want %q", got, bundled)
-		}
-	}
-
-	// The env override beats everything.
-	t.Setenv("QAIL_CONSOLE_DIR", "/elsewhere")
-	if got := ResolveDir(exe, fallback); got != "/elsewhere" {
-		t.Errorf("env: got %q", got)
-	}
-}
-
-func TestBundledNode(t *testing.T) {
-	dir := t.TempDir()
-	if got := BundledNode(dir, "linux"); got != "" {
-		t.Errorf("source install: got %q, want \"\"", got)
-	}
-	if BundledNode("", "linux") != "" {
-		t.Error("empty dir should have no bundled node")
-	}
-	for goos, exe := range map[string]string{"linux": "node", "windows": "node.exe"} {
-		p := filepath.Join(dir, "runtime", exe)
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(p, nil, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if got := BundledNode(dir, goos); got != p {
-			t.Errorf("%s: got %q, want %q", goos, got, p)
-		}
-	}
-}
-
-func TestPathNodeDirKeepsBundledNodeOffPath(t *testing.T) {
-	if got := pathNodeDir("/app/resources/console/runtime/node", true); got != "" {
-		t.Errorf("bundled: got %q, want \"\"", got)
-	}
-	if got := pathNodeDir("/opt/homebrew/bin/node", false); got != "/opt/homebrew/bin" {
-		t.Errorf("system: got %q", got)
-	}
-}

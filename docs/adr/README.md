@@ -21,8 +21,9 @@ Decisions that shape `qail`'s architecture. Numbered, append-only.
 | [0015](0015-forms-split-select-from-confirm.md) | Forms split selection from confirmation | Accepted |
 | [0016](0016-http-api-layer.md) | HTTP API layer over the actions package | Accepted |
 | [0017](0017-electron-desktop-app.md) | Electron desktop app over a stdio RPC backend | Accepted |
-| [0018](0018-agent-console-sidecar.md) | Agent Console as a supervised Node sidecar | Accepted |
-| [0019](0019-bundle-agent-console.md) | Bundle the Agent Console and a Node runtime in the installers | Accepted |
+| [0018](0018-agent-console-sidecar.md) | Agent Console as a supervised Node sidecar | Superseded by 0020 |
+| [0019](0019-bundle-agent-console.md) | Bundle the Agent Console and a Node runtime in the installers | Superseded by 0020 |
+| [0020](0020-agent-console-in-binary.md) | Agent Console inside the qail binary, driving the installed claude CLI | Accepted |
 
 ## Format
 

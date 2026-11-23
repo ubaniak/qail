@@ -57,7 +57,7 @@ type Server struct {
 // Bindings methods, so they can't be reached over the RPC bridge.
 type ServerOption func(*Bindings)
 
-// WithConsole lets the UI drive the Agent Console through m (ADR-0018).
+// WithConsole lets the UI drive the Agent Console through m (ADR-0020).
 func WithConsole(m *console.Manager) ServerOption {
 	return func(b *Bindings) { b.console = m }
 }

@@ -1,15 +1,11 @@
-// Package console supervises the Agent Console: a local web UI for Claude
-// Code agents scoped to qail workspaces and repos (ADR-0018).
+// Package console is the Agent Console: a local web UI for Claude Code
+// agents scoped to qail workspaces and repos (ADR-0018, ADR-0020).
 //
-// The console's agent runtime is the Claude Agent SDK, which ships for
-// TypeScript and Python only, so the console runs as a Node sidecar
-// (`node server.mjs`). Installers ship it with its own Node runtime in the
-// app's resources (ADR-0019); `make console-install` puts a source install
-// in ~/.qail/console that uses the system Node. This package locates that
-// install, starts and stops
-// the process, waits for it to become healthy, and opens it in the user's
-// browser. The console reads workspaces and repos from qail's HTTP API
-// (internal/api), so it never touches the SQLite store directly.
+// It runs inside the qail binary. The UI is embedded (web/), the HTTP
+// handlers read workspaces and repos straight from the config Store, and
+// chats drive the user's installed `claude` CLI over its stream-json
+// protocol (claude.go), answering its permission prompts from the
+// browser. There is no Node process and no separate qail API server.
 package console
 
 import (
@@ -17,10 +13,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -29,17 +26,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ubaniak/qail/internal/config"
 	"github.com/ubaniak/qail/internal/runner"
 )
 
 // DefaultPort is the console's loopback port.
 const DefaultPort = 4317
-
-// ErrNotInstalled means the console files or its node_modules are missing.
-var ErrNotInstalled = errors.New("agent console is not installed (reinstall qail, or run `make console-install` from a source checkout)")
-
-// ErrNoNode means no Node.js binary could be found.
-var ErrNoNode = errors.New("node not found (install Node ≥ 22 or set QAIL_NODE)")
 
 // Runner is the narrow subprocess seam used to open the browser.
 type Runner interface {
@@ -48,28 +40,16 @@ type Runner interface {
 
 // Options configures a Manager. Zero values pick sensible defaults.
 type Options struct {
-	// Dir is the console install directory (contains server.mjs). See
-	// ResolveDir.
-	Dir string
-	// DataDir is where the console keeps its chat threads
-	// (AGENT_CONSOLE_DATA). A bundled console lives in the read-only app
-	// resources, so this must point outside Dir. "" = the console's default
-	// (Dir/data). An AGENT_CONSOLE_DATA already in the environment wins.
+	// Store is qail's config: workspaces, repos and root. Required to Start.
+	Store config.Store
+	// DataDir is where chat threads are kept (store.json).
 	DataDir string
 	// Port is the console's loopback port. Default DefaultPort.
 	Port int
-	// QailURL is the qail HTTP API the console reads workspaces from.
-	QailURL string
-	// QailBin is passed to the console so it can start `qail serve` itself
-	// when QailURL is down and AutostartQail is true.
-	QailBin string
-	// AutostartQail lets the console spawn `qail serve`. The desktop app
-	// serves the API in-process, so it leaves this false.
-	AutostartQail bool
-	// Node is the node binary. "" = $QAIL_NODE, else the runtime bundled in
-	// Dir (BundledNode), else the system Node (FindNode).
-	Node string
-	// Log receives the console's stdout/stderr. nil = discarded.
+	// Claude is the Claude Code CLI. "" = FindClaude at each chat, so
+	// installing Claude Code while qail runs just works.
+	Claude string
+	// Log receives server errors. nil = discarded.
 	Log io.Writer
 	// Runner opens the browser. nil = runner.NewOS().
 	Runner Runner
@@ -77,23 +57,20 @@ type Options struct {
 	GOOS string
 }
 
-// Manager owns at most one console process.
+// Manager owns at most one in-process console server.
 type Manager struct {
 	opts   Options
 	client *http.Client
 
-	mu   sync.Mutex
-	proc *exec.Cmd
-	done chan struct{}
+	mu  sync.Mutex
+	srv *http.Server
+	app *server
 }
 
 // New returns a Manager with defaults applied.
 func New(o Options) *Manager {
 	if o.Port == 0 {
 		o.Port = DefaultPort
-	}
-	if o.QailURL == "" {
-		o.QailURL = "http://127.0.0.1:8765"
 	}
 	if o.Log == nil {
 		o.Log = io.Discard
@@ -128,15 +105,16 @@ func ScopePath(workspace, repo string) string {
 	return p
 }
 
-// Installed reports whether Dir holds a runnable console.
-func (m *Manager) Installed() bool {
-	return fileExists(filepath.Join(m.opts.Dir, "server.mjs")) &&
-		fileExists(filepath.Join(m.opts.Dir, "node_modules"))
+// ClaudeFound reports whether the Claude Code CLI can be found. The
+// console still opens without it; chats explain what is missing.
+func (m *Manager) ClaudeFound() bool {
+	_, err := FindClaude(m.opts.Claude)
+	return err == nil
 }
 
-// Healthy reports whether a console (ours or another process's) answers on Port.
+// Healthy reports whether a console (ours or another qail's) answers on Port.
 func (m *Manager) Healthy(ctx context.Context) bool {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, m.URL("/"), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, m.URL("/api/health"), nil)
 	if err != nil {
 		return false
 	}
@@ -148,104 +126,65 @@ func (m *Manager) Healthy(ctx context.Context) bool {
 	return res.StatusCode == http.StatusOK
 }
 
-// Running reports whether this Manager owns a live console process.
+// Running reports whether this Manager is serving the console.
 func (m *Manager) Running() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.proc != nil
+	return m.srv != nil
 }
 
-// Start launches the console unless one already answers on Port, then
-// waits up to 15s for it to become healthy.
+// Start serves the console on 127.0.0.1:Port unless a console already
+// answers there (e.g. the menubar app's, when `qail console` runs in a
+// terminal), in which case that one is reused.
 func (m *Manager) Start(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	if m.proc != nil || m.Healthy(ctx) {
+	if m.srv != nil || m.Healthy(ctx) {
 		return nil
 	}
-	if !m.Installed() {
-		return fmt.Errorf("%w: looked in %s", ErrNotInstalled, m.opts.Dir)
+	if m.opts.Store == nil {
+		return errors.New("agent console: no config store")
 	}
-	node, bundled, err := m.node()
+	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(m.opts.Port)))
 	if err != nil {
+		return fmt.Errorf("agent console: %w", err)
+	}
+	app, err := newServer(m.opts)
+	if err != nil {
+		ln.Close()
 		return err
 	}
-
-	autostart := "0"
-	if m.opts.AutostartQail {
-		autostart = "1"
+	srv := &http.Server{
+		Handler:           app.handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+		ErrorLog:          log.New(m.opts.Log, "agent console: ", 0),
 	}
-	cmd := exec.Command(node, "server.mjs")
-	cmd.Dir = m.opts.Dir
-	cmd.Stdout = m.opts.Log
-	cmd.Stderr = m.opts.Log
-	cmd.Env = append(os.Environ(),
-		"PORT="+strconv.Itoa(m.opts.Port),
-		"QAIL_URL="+m.opts.QailURL,
-		"QAIL_AUTOSTART="+autostart,
-		// GUI apps on macOS start with a minimal PATH; the agent's tools
-		// (git, npm, go…) need the user's usual locations.
-		"PATH="+augmentPath(pathNodeDir(node, bundled), os.Getenv("PATH")),
-	)
-	if m.opts.DataDir != "" && os.Getenv("AGENT_CONSOLE_DATA") == "" {
-		cmd.Env = append(cmd.Env, "AGENT_CONSOLE_DATA="+m.opts.DataDir)
-	}
-	if m.opts.QailBin != "" {
-		cmd.Env = append(cmd.Env, "QAIL_BIN="+m.opts.QailBin)
-	}
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start agent console: %w", err)
-	}
-
-	done := make(chan struct{})
-	m.proc, m.done = cmd, done
 	go func() {
-		_ = cmd.Wait()
-		m.mu.Lock()
-		if m.proc == cmd {
-			m.proc = nil
+		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			fmt.Fprintf(m.opts.Log, "agent console: %v\n", err)
 		}
-		m.mu.Unlock()
-		close(done)
 	}()
-
-	deadline := time.Now().Add(15 * time.Second)
-	for time.Now().Before(deadline) {
-		select {
-		case <-done:
-			return errors.New("agent console exited during startup (see qail logs)")
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(200 * time.Millisecond):
-		}
-		if m.Healthy(ctx) {
-			return nil
-		}
-	}
-	return errors.New("agent console did not become healthy within 15s")
+	m.srv, m.app = srv, app
+	return nil
 }
 
-// Stop terminates the console process this Manager started. A console
-// started by someone else is left alone.
+// Stop stops running chats and shuts the server down. A console served by
+// another process is left alone.
 func (m *Manager) Stop() {
 	m.mu.Lock()
-	cmd, done := m.proc, m.done
-	m.proc = nil
+	srv, app := m.srv, m.app
+	m.srv, m.app = nil, nil
 	m.mu.Unlock()
-	if cmd == nil || cmd.Process == nil {
+	if srv == nil {
 		return
 	}
-	if m.opts.GOOS == "windows" {
-		_ = cmd.Process.Kill()
-	} else {
-		_ = cmd.Process.Signal(os.Interrupt)
+	app.stopAll()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		_ = srv.Close()
 	}
-	select {
-	case <-done:
-	case <-time.After(3 * time.Second):
-		_ = cmd.Process.Kill()
-	}
+	app.wait(3 * time.Second)
 }
 
 // Open starts the console if needed and opens path in the browser.
@@ -277,98 +216,9 @@ func (m *Manager) OpenBrowser(ctx context.Context, u string) error {
 	return nil
 }
 
-// node picks the runtime: Options.Node, $QAIL_NODE, the bundled runtime,
-// then the system Node. bundled reports the third case.
-func (m *Manager) node() (path string, bundled bool, err error) {
-	for _, c := range []string{m.opts.Node, os.Getenv("QAIL_NODE")} {
-		if c != "" && fileExists(c) {
-			return c, false, nil
-		}
-	}
-	if b := BundledNode(m.opts.Dir, m.opts.GOOS); b != "" {
-		return b, true, nil
-	}
-	p, err := FindNode("")
-	return p, false, err
-}
-
-// BundledNode returns the Node runtime shipped inside a bundled console
-// (Dir/runtime/node[.exe]), or "" when Dir is a source install.
-func BundledNode(dir, goos string) string {
-	exe := "node"
-	if goos == "windows" {
-		exe = "node.exe"
-	}
-	p := filepath.Join(dir, "runtime", exe)
-	if dir == "" || !fileExists(p) {
-		return ""
-	}
-	return p
-}
-
-// pathNodeDir is the directory to put first on the console's PATH. A
-// system Node's dir goes first so the agent's tools see the same node; the
-// bundled runtime stays off PATH so it never shadows the user's own Node
-// (and its npm) in their projects.
-func pathNodeDir(node string, bundled bool) string {
-	if bundled {
-		return ""
-	}
-	return filepath.Dir(node)
-}
-
-// ResolveDir picks the console install for a qail binary at exe:
-// $QAIL_CONSOLE_DIR, else a console installed next to the binary's
-// directory (exe/../../console — the app's resources/console beside
-// resources/bin/qail, or ~/.qail/console beside ~/.qail/bin/qail), else
-// fallback (qailhome's ConsoleDir, where `make console-install` puts it).
-func ResolveDir(exe, fallback string) string {
-	if d := os.Getenv("QAIL_CONSOLE_DIR"); d != "" {
-		return d
-	}
-	if exe != "" {
-		// The macOS CLI is a symlink into the app bundle.
-		if real, err := filepath.EvalSymlinks(exe); err == nil {
-			exe = real
-		}
-		d := filepath.Join(filepath.Dir(filepath.Dir(exe)), "console")
-		if (&Manager{opts: Options{Dir: d}}).Installed() {
-			return d
-		}
-	}
-	return fallback
-}
-
-// FindNode resolves the node binary: explicit, $QAIL_NODE, PATH, then the
-// usual install locations (Homebrew, Volta, nvm) since a menubar app does
-// not inherit the shell's PATH.
-func FindNode(explicit string) (string, error) {
-	for _, c := range []string{explicit, os.Getenv("QAIL_NODE")} {
-		if c != "" && fileExists(c) {
-			return c, nil
-		}
-	}
-	if p, err := exec.LookPath("node"); err == nil {
-		return p, nil
-	}
-	home, _ := os.UserHomeDir()
-	candidates := []string{
-		"/opt/homebrew/bin/node",
-		"/usr/local/bin/node",
-		filepath.Join(home, ".homebrew", "bin", "node"),
-		filepath.Join(home, ".volta", "bin", "node"),
-	}
-	candidates = append(candidates, nvmNodes(filepath.Join(home, ".nvm", "versions", "node"))...)
-	for _, c := range candidates {
-		if fileExists(c) {
-			return c, nil
-		}
-	}
-	return "", ErrNoNode
-}
-
-// nvmNodes lists nvm-installed node binaries, newest version first.
-func nvmNodes(dir string) []string {
+// nvmBins lists nvm-installed Node bin directories, newest version first.
+// Claude Code installed with `npm i -g` under nvm lives there.
+func nvmBins(dir string) []string {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
@@ -382,7 +232,7 @@ func nvmNodes(dir string) []string {
 	sort.Slice(versions, func(i, j int) bool { return versionLess(versions[j], versions[i]) })
 	out := make([]string, 0, len(versions))
 	for _, v := range versions {
-		out = append(out, filepath.Join(dir, v, "bin", "node"))
+		out = append(out, filepath.Join(dir, v, "bin"))
 	}
 	return out
 }
@@ -400,11 +250,14 @@ func versionLess(a, b string) bool {
 	return len(pa) < len(pb)
 }
 
-func augmentPath(nodeDir, current string) string {
+// augmentPath puts the claude CLI's directory and the usual tool
+// locations on PATH. GUI apps on macOS start with a minimal PATH, and the
+// agent's tools (git, npm, go…) need the user's usual locations.
+func augmentPath(claudeDir, current string) string {
 	home, _ := os.UserHomeDir()
-	parts := []string{nodeDir, "/opt/homebrew/bin", "/usr/local/bin", filepath.Join(home, ".qail", "bin")}
+	parts := []string{claudeDir, "/opt/homebrew/bin", "/usr/local/bin", filepath.Join(home, ".local", "bin"), filepath.Join(home, ".qail", "bin")}
 	if current != "" {
-		parts = append(parts, current)
+		parts = append(parts, filepath.SplitList(current)...)
 	}
 	parts = append(parts, "/usr/bin", "/bin", "/usr/sbin", "/sbin")
 	seen := map[string]bool{}
