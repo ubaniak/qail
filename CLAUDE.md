@@ -13,7 +13,7 @@ make build          # outputs bin/qail
 go build -o bin/qail main.go   # same thing
 ```
 
-No test suite exists. No linter configured.
+`make test` runs the Go tests. No linter configured for Go; the frontend has ESLint.
 
 ## Architecture
 
@@ -30,7 +30,8 @@ Go CLI app using **Cobra** for commands and **GORM + SQLite** for persistence (`
 - `internal/scripts/` — Manages bash scripts stored in `~/.qail/scripts/`.
 - `internal/clip/` — Clipboard helper for `cd` (copies path).
 - `internal/color/` — Lipgloss color helpers.
-- `internal/app/` — `Bindings` (the desktop UI's method set) plus `rpc.go`, the stdio JSON-lines server behind the hidden `qail desktop-backend` command.
+- `internal/app/` — `Bindings` (the desktop UI's method set) plus two transports: `rpc.go`, the stdio JSON-lines server behind the hidden `qail desktop-backend` command (Electron), and `http.go`, the loopback HTTP server behind `qail tray`.
+- `internal/tray/` + `cmd/tray.go` — `qail tray`: fyne.io/systray icon, UI opened in the default browser (ADR-0021). `internal/ui/` embeds the frontend build (`make frontend` copies `frontend/dist` there).
 - `frontend/` — React/Vite UI packaged as an Electron menubar app (`frontend/electron/`). Electron spawns `qail desktop-backend` and calls `Bindings` methods by name. `make app` runs it; `make installer` packages it.
 - `internal/console/` — The Agent Console, in-process: embedded web UI (`web/`), HTTP handlers reading the config Store, chat threads in `~/.qail/console/data`, and `claude.go`, which drives the installed `claude` CLI over stream-json and answers its permission prompts. Used by `qail console` and the Electron tray submenu (via `Bindings` console methods). See ADR-0020 (supersedes the Node sidecar of ADR-0018/0019).
 

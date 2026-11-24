@@ -5,9 +5,18 @@ EXE := $(if $(filter Windows_NT,$(OS)),.exe,)
 build:
 	go build -o bin/qail$(EXE) .
 
-# Frontend build — emits frontend/dist/, which Electron loads.
+# Frontend build — emits frontend/dist/, which Electron loads, and copies
+# it to internal/ui/dist/, which `qail tray` embeds (ADR-0021). Run it
+# before `make build` for a binary whose tray serves the UI.
 frontend:
 	cd frontend && npm install --silent && npm run build
+	find internal/ui/dist -mindepth 1 ! -name .gitkeep -exec rm -rf {} +
+	cp -R frontend/dist/. internal/ui/dist/
+
+# Tray app (ADR-0021) — builds the frontend into the binary, then runs
+# `qail tray --open`: a tray icon plus the UI in the default browser.
+tray: frontend build
+	./bin/qail$(EXE) tray --open
 
 # Desktop app, unpacked — builds the Go backend (bin/qail) and the
 # frontend, then launches Electron against them. Electron spawns
@@ -30,7 +39,7 @@ test:
 # build/installers/. The Go binary links SQLite
 # via cgo, so build mac and linux installers on their target OS; Windows
 # can also be cross-built (see build-windows).
-installer-mac: build frontend
+installer-mac: frontend build
 	cd frontend && npx electron-builder --mac
 
 # Apple silicon dmg from either Mac. Overwrites bin/qail with an arm64
@@ -45,14 +54,14 @@ installer-mac-arm64: frontend
 build-windows:
 	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 $(if $(filter Windows_NT,$(OS)),,CC=x86_64-w64-mingw32-gcc) go build -o bin/qail.exe .
 
-installer-windows: build-windows frontend
+installer-windows: frontend build-windows
 	cd frontend && npx electron-builder --win --x64
 
-installer-linux: build frontend
+installer-linux: frontend build
 	cd frontend && npx electron-builder --linux
 
 # Convenience: native installer for the current host OS.
-installer: build frontend
+installer: frontend build
 	cd frontend && npx electron-builder
 
-.PHONY: build build-windows frontend app app-dev test installer installer-mac installer-mac-arm64 installer-windows installer-linux
+.PHONY: build build-windows frontend tray app app-dev test installer installer-mac installer-mac-arm64 installer-windows installer-linux

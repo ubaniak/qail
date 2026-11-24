@@ -24,6 +24,7 @@ Decisions that shape `qail`'s architecture. Numbered, append-only.
 | [0018](0018-agent-console-sidecar.md) | Agent Console as a supervised Node sidecar | Superseded by 0020 |
 | [0019](0019-bundle-agent-console.md) | Bundle the Agent Console and a Node runtime in the installers | Superseded by 0020 |
 | [0020](0020-agent-console-in-binary.md) | Agent Console inside the qail binary, driving the installed claude CLI | Accepted |
+| [0021](0021-tray-app-browser-ui.md) | `qail tray`: Go systray icon with the UI in the browser | Accepted (phase 1) |
 
 ## Format
 

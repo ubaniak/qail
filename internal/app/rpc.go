@@ -115,17 +115,22 @@ func (s *Server) Serve(in io.Reader) error {
 	return sc.Err()
 }
 
-// call invokes the exported Bindings method named method. Every bound
+func (s *Server) call(method string, rawArgs []json.RawMessage) (any, error) {
+	return dispatch(s.b, method, rawArgs)
+}
+
+// dispatch invokes the exported Bindings method named method. Every bound
 // method returns either error or (T, error); args are decoded
-// positionally into the method's parameter types.
-func (s *Server) call(method string, rawArgs []json.RawMessage) (result any, err error) {
+// positionally into the method's parameter types. Both transports (the
+// stdio bridge here and the HTTP server in http.go) go through it.
+func dispatch(b *Bindings, method string, rawArgs []json.RawMessage) (result any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("%s: panic: %v", method, r)
 		}
 	}()
 
-	m := reflect.ValueOf(s.b).MethodByName(method)
+	m := reflect.ValueOf(b).MethodByName(method)
 	if !m.IsValid() {
 		return nil, fmt.Errorf("unknown method %q", method)
 	}

@@ -138,9 +138,9 @@ export type QailServiceShape = {
 
 const QailServiceContext = createContext<QailServiceShape | null>(null);
 
-// Clipboard writes go through Electron's main-process clipboard, which
-// works regardless of focus or origin (navigator.clipboard does not on
-// file://).
+// Clipboard writes go through Electron's main-process clipboard (which
+// works regardless of focus or origin; navigator.clipboard does not on
+// file://), or navigator.clipboard in a `qail tray` browser tab.
 async function copyToClipboard(text: string): Promise<void> {
   try {
     await copyText(text);

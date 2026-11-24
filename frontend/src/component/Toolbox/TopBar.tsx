@@ -6,7 +6,7 @@
 // blur shows the desktop behind in a pleasing way.
 
 import { CloseOutlined, SettingOutlined } from "@ant-design/icons";
-import { hideWindow } from "../../desktop";
+import { hideWindow, isDesktop } from "../../desktop";
 import { Button } from "antd";
 
 // public/icon.png, resolved against Vite's base so it loads over file://.
@@ -45,14 +45,17 @@ export default function TopBar({ onSettingsClick, settingsActive }: TopBarProps)
           onClick={onSettingsClick}
           aria-label="Settings"
         />
-        <Button
-          type="text"
-          shape="circle"
-          size="small"
-          icon={<CloseOutlined />}
-          onClick={() => void hideWindow()}
-          aria-label="Close"
-        />
+        {/* A browser tab closes itself; only the Electron popover needs this. */}
+        {isDesktop && (
+          <Button
+            type="text"
+            shape="circle"
+            size="small"
+            icon={<CloseOutlined />}
+            onClick={() => void hideWindow()}
+            aria-label="Close"
+          />
+        )}
       </div>
     </div>
   );
