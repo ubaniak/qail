@@ -1,8 +1,9 @@
 // Typed surface of the Go Bindings (internal/app/bindings.go). The rest
 // of the app imports `requireApi()` and calls methods on the returned
-// object. Each method is forwarded by name over the Electron bridge to
-// the `qail desktop-backend` process, which dispatches it to the Go
-// method of the same name with the same positional arguments.
+// object. Each method is forwarded by name (see ../desktop.ts) over the
+// Electron bridge or, under `qail tray`, over HTTP; either way the Go side
+// dispatches it to the method of the same name with the same positional
+// arguments.
 //
 // If a method is added on the Go side, add it to the Bindings type here
 // so the type-check covers the call site.

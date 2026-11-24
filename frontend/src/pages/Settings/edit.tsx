@@ -5,6 +5,7 @@ import { pickDirectory } from "../../desktop";
 import { Input } from "antd";
 import { useState } from "react";
 import { QButton } from "../../component/Buttons/QButton";
+import { useNotification } from "../../providers/notification";
 import { useQailService } from "../../providers/qailservice";
 
 export type EditRootProps = {
@@ -16,6 +17,7 @@ const DEFAULT_ROOT = "~/workspaces";
 
 export const EditRoot = ({ root: initialRoot, onClose }: EditRootProps) => {
   const { save } = useQailService();
+  const { toast } = useNotification();
   const [root, setRoot] = useState(initialRoot || DEFAULT_ROOT);
 
   const changed = root.trim() !== initialRoot.trim();
@@ -59,8 +61,13 @@ export const EditRoot = ({ root: initialRoot, onClose }: EditRootProps) => {
           <QButton
             variant="cancel"
             onClick={async () => {
-              const picked = await pickDirectory("Choose workspace root");
-              if (picked) setRoot(picked);
+              try {
+                const picked = await pickDirectory("Choose workspace root");
+                if (picked) setRoot(picked);
+              } catch (err) {
+                // e.g. no folder dialog on this Linux desktop; typing works.
+                toast.error(err instanceof Error ? err.message : String(err));
+              }
             }}
           >
             Browse

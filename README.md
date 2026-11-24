@@ -84,6 +84,17 @@ make app-dev                # Vite HMR inside Electron (run `make build` after G
 
 The window lives under a tray icon: left-click toggles it, right-click opens the menu (on Linux the menu is the only entry point), and `Ctrl+Alt+Q` toggles it from anywhere. Set `QAIL_BIN` to run Electron against a different `qail` binary.
 
+### Tray app (experimental)
+
+`qail tray` is the Electron-free version of the desktop app: a tray icon (the menu bar on macOS) whose UI opens in your default browser, served by the `qail` binary itself on `127.0.0.1:4318`. Left-click opens the UI; right-click shows **Open qail**, the **Agent Console** submenu and **Quit**. Running `qail tray` again while one is running just opens the UI. See [ADR-0021](docs/adr/0021-tray-app-browser-ui.md).
+
+```sh
+make tray                   # build the frontend into bin/qail, run `qail tray --open`
+qail tray --port 5000       # another port (loopback only)
+```
+
+The UI is embedded at build time, so run `make frontend` before `make build`; a binary built without it serves a page saying so. On Linux the tray needs a StatusNotifierItem host (KDE, XFCE, Cinnamon; GNOME needs the AppIndicator extension), and **Browse** for the workspace root needs `zenity` installed (you can always type the path). Without a tray host the UI is still served at the URL above.
+
 ### Installers
 
 electron-builder packages the frontend plus `bin/qail` (shipped as `resources/bin/qail`). The Go binary links SQLite via cgo, so build the macOS and Linux installers on their target OS. The Windows installer can also be built on macOS or Linux: `make installer-windows` cross-compiles `bin/qail.exe`, which needs a MinGW C compiler (`brew install mingw-w64` on macOS).
