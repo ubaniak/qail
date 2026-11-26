@@ -131,7 +131,7 @@ async function refresh() {
   const preloadedCount = new Set(realAgents.flatMap((a) => a.preloadedSkills)).size;
   $("#stats").innerHTML = (state.repo ? [
     [realAgents.length, "agents"], [o.skills.length, "skills available"], [preloadedCount, "skills preloaded by agents"],
-    [o.runs.filter((r) => r.state?.status === "running").length + " / " + o.runs.length, "/ship runs active / total"],
+    [o.runs.filter((r) => r.state?.status === "running").length + " / " + o.runs.length, "/shipit runs active / total"],
   ] : [
     [w.repos.length, "repos"], [`${w.repos.filter((r) => r.cloned).length} / ${w.repos.length}`, "cloned"],
     [w.repos.filter((r) => r.hasClaude).length, "repos with .claude/"], [realAgents.length, "workspace-level agents"],
@@ -199,7 +199,7 @@ function renderRuns() {
       <div class="run-id">${esc(r.id)}</div>
       <div class="run-meta"><span class="status ${esc(r.state?.status || "")}">${esc(r.state?.status || "unknown")}</span>
         <span>${esc(r.state?.phase || "")}${r.state?.iteration ? ` · iter ${r.state.iteration}` : ""}</span><span>${ago(r.updated)}</span></div>
-    </button>`).join("") : '<div class="muted">No runs yet. Ask the <b>main</b> agent to <code>/ship</code> something here.</div>';
+    </button>`).join("") : '<div class="muted">No runs yet. Ask the <b>main</b> agent to <code>/shipit</code> something here.</div>';
   document.querySelectorAll(".run").forEach((b) => (b.onclick = () => openRun(b.dataset.run)));
 }
 

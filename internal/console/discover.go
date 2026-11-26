@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Discovery of the agents, skills and /ship runs visible in a scope,
+// Discovery of the agents, skills and /shipit runs visible in a scope,
 // read the way Claude Code reads them: ~/.claude/{agents,skills} for the
 // user, <scope>/.claude/{agents,skills} for the project (project wins).
 
@@ -52,7 +52,7 @@ type threadBrief struct {
 	Updated    string   `json:"updated"`
 }
 
-// ShipRun is a /ship run directory under <scope>/.agent/runs.
+// ShipRun is a /shipit run directory under <scope>/.agent/runs.
 type ShipRun struct {
 	ID      string         `json:"id"`
 	State   map[string]any `json:"state"`
@@ -242,7 +242,7 @@ func discoverAgents(homeClaude, projectPath string, skills []Skill) []Agent {
 	main := Agent{
 		Name:               mainAgent,
 		Scope:              "session",
-		Description:        "Default Claude Code session in this scope. Can run /ship and dispatch every agent.",
+		Description:        "Default Claude Code session in this scope. Can run /shipit and dispatch every agent.",
 		Model:              "default",
 		Tools:              []string{"(all tools)"},
 		PreloadedSkills:    []string{},

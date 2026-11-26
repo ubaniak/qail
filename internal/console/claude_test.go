@@ -31,7 +31,7 @@ func fakeClaude(t *testing.T) (bin, dir string) {
 printf '%s\n' "$@" > "` + dir + `/args"
 read -r prompt
 printf '%s\n' "$prompt" > "` + dir + `/prompt"
-echo '{"type":"system","subtype":"init","session_id":"sess-1","model":"claude-test","skills":["ship"],"tools":["Bash"],"permissionMode":"default"}'
+echo '{"type":"system","subtype":"init","session_id":"sess-1","model":"claude-test","skills":["shipit"],"tools":["Bash"],"permissionMode":"default"}'
 echo 'not json, a stray log line'
 echo '{"type":"stream_event","parent_tool_use_id":null,"event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Working"}}}'
 echo '{"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":"tu1","name":"Bash","input":{"command":"touch x"}}]}}'
