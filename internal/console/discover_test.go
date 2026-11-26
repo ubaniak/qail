@@ -32,14 +32,14 @@ func TestParseFrontmatter(t *testing.T) {
 
 func TestDiscoverAgentsAndSkills(t *testing.T) {
 	home, proj := t.TempDir(), t.TempDir()
-	write(t, filepath.Join(home, "skills", "ship", "SKILL.md"), "---\nname: ship\ndescription: user ship\n---\n")
-	write(t, filepath.Join(proj, ".claude", "skills", "ship", "SKILL.md"), "---\nname: ship\ndescription: project ship\n---\n")
+	write(t, filepath.Join(home, "skills", "shipit", "SKILL.md"), "---\nname: shipit\ndescription: user shipit\n---\n")
+	write(t, filepath.Join(proj, ".claude", "skills", "shipit", "SKILL.md"), "---\nname: shipit\ndescription: project shipit\n---\n")
 	write(t, filepath.Join(proj, ".claude", "skills", "lint", "SKILL.md"), "---\ndescription: lint it\n---\n")
 	write(t, filepath.Join(proj, ".claude", "agents", "reviewer.md"), "---\nname: reviewer\nmodel: opus\ntools: Read, Grep\nskills:\n  - lint\n  - gone\n---\nReview code.\n")
 	write(t, filepath.Join(home, "agents", "helper.md"), "---\ndescription: helps\n---\n")
 
 	skills := discoverSkills(home, proj)
-	if len(skills) != 2 || skills[0].Name != "lint" || skills[1].Description != "project ship" || skills[1].Scope != "project" {
+	if len(skills) != 2 || skills[0].Name != "lint" || skills[1].Description != "project shipit" || skills[1].Scope != "project" {
 		t.Fatalf("skills = %+v", skills)
 	}
 	agents := discoverAgents(home, proj, skills)
